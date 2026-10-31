@@ -11,10 +11,12 @@ import { useResolved } from '@/lib/actions';
 import ClassSessionInfoSection from '@/components/features/class-sessions/ClassSessionInfoSection';
 import AttendanceSection from '@/components/features/class-sessions/AttendanceSection';
 import AttendanceOverview from '@/components/features/class-sessions/AttendanceOverview';
+import AttendanceEmailCard from '@/components/features/class-sessions/AttendanceEmailCard';
 import LeaveRequestsSection from '@/components/features/leave-requests/LeaveRequestsSection';
 import { CLASS_SESSION_STATUS_MAP, getEffectiveStatus } from '@/lib/class-sessions';
 import type { ListAttendanceSessionsResponse } from '@/actions/v1/attendance/list-attendance-sessions';
 import type { GetAttendanceSummaryResponse } from '@/actions/v1/attendance/get-attendance-summary';
+import type { GetAttendanceEmailStatusResponse } from '@/actions/v1/attendance-notifications/get-attendance-email-status';
 import type { ClassSessionDetail } from '@/types/actions/class-management';
 import type { IListLeaveRequestsResult } from '@/types/actions/leave-requests';
 
@@ -25,6 +27,19 @@ interface Props {
   attendanceSessionsPromise: Promise<ListAttendanceSessionsResponse>;
   summaryPromise: Promise<GetAttendanceSummaryResponse>;
   leaveRequestsPromise: Promise<IListLeaveRequestsResult>;
+  /** null với Trợ giảng — email điểm danh là việc của ADMIN (BE chặn 403). */
+  emailStatusPromise: Promise<GetAttendanceEmailStatusResponse> | null;
+}
+
+function AttendanceEmailSection({
+  classSessionId,
+  promise,
+}: {
+  classSessionId: number;
+  promise: Promise<GetAttendanceEmailStatusResponse>;
+}) {
+  const { data } = useResolved(promise);
+  return <AttendanceEmailCard classSessionId={classSessionId} status={data} />;
 }
 
 function AttendanceSectionsGroup({
@@ -94,6 +109,18 @@ export function LeaveRequestsSkeleton() {
   );
 }
 
+function AttendanceEmailSkeleton() {
+  return (
+    <Card>
+      <CardContent className="space-y-3 py-4 sm:py-6">
+        <Skeleton className="h-5 w-48" />
+        <Skeleton className="h-4 w-full max-w-md" />
+        <Skeleton className="h-9 w-28" />
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function ClassSessionDetailPageClient({
   classSession,
   backHref,
@@ -101,6 +128,7 @@ export default function ClassSessionDetailPageClient({
   attendanceSessionsPromise,
   summaryPromise,
   leaveRequestsPromise,
+  emailStatusPromise,
 }: Props) {
   const statusInfo =
     CLASS_SESSION_STATUS_MAP[getEffectiveStatus(classSession.startTime, classSession.endTime)];
@@ -137,6 +165,12 @@ export default function ClassSessionDetailPageClient({
           summaryPromise={summaryPromise}
         />
       </Suspense>
+
+      {emailStatusPromise && (
+        <Suspense fallback={<AttendanceEmailSkeleton />}>
+          <AttendanceEmailSection classSessionId={classSession.id} promise={emailStatusPromise} />
+        </Suspense>
+      )}
 
       <Suspense fallback={<LeaveRequestsSkeleton />}>
         <LeaveRequestsSectionWrapper promise={leaveRequestsPromise} />

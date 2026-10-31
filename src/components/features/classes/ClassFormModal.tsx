@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -83,6 +84,9 @@ export default function ClassFormModal({ open, onOpenChange, mode, initialData }
   const [description, setDescription] = useState(initialData?.description ?? '');
   const [status, setStatus] = useState<ClassStatus>(initialData?.status ?? 'ACTIVE');
   const [monthlyFee, setMonthlyFee] = useState(String(initialData?.monthlyFee ?? 0));
+  const [attendanceEmailEnabled, setAttendanceEmailEnabled] = useState(
+    initialData?.attendanceEmailEnabled ?? false,
+  );
   const [submitted, setSubmitted] = useState(false);
 
   const nameError = submitted && !name.trim() ? 'Vui lòng nhập tên lớp' : '';
@@ -105,6 +109,7 @@ export default function ClassFormModal({ open, onOpenChange, mode, initialData }
           code: code.trim(),
           description: description.trim() || undefined,
           monthlyFee: monthly,
+          attendanceEmailEnabled,
         });
         handleActionResult(
           result.errors,
@@ -121,6 +126,7 @@ export default function ClassFormModal({ open, onOpenChange, mode, initialData }
           description: description.trim() || undefined,
           status,
           monthlyFee: monthly,
+          attendanceEmailEnabled,
         });
         handleActionResult(
           result.errors,
@@ -195,6 +201,23 @@ export default function ClassFormModal({ open, onOpenChange, mode, initialData }
             onChange={setMonthlyFee}
             error={monthlyFeeError}
           />
+          <div className="flex items-start gap-3 rounded-md border p-3">
+            <Checkbox
+              id="class-attendance-email"
+              checked={attendanceEmailEnabled}
+              onCheckedChange={(v) => setAttendanceEmailEnabled(v === true)}
+              className="mt-0.5"
+            />
+            <div className="space-y-1">
+              <Label htmlFor="class-attendance-email" className="cursor-pointer">
+                Gửi email kết quả điểm danh cho học sinh
+              </Label>
+              <p className="text-muted-foreground text-xs">
+                Sau mỗi buổi học có mở điểm danh, mỗi học sinh nhận một email báo có mặt, vắng có
+                phép (kèm lý do) hoặc vắng không phép.
+              </p>
+            </div>
+          </div>
           {mode === 'edit' && (
             <div className="space-y-1.5">
               <Label>Trạng thái</Label>

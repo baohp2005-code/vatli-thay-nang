@@ -60,6 +60,8 @@ export interface ClassRow {
   createdAt?: string;
   /** Học phí thu theo tháng (VND, số nguyên). Chỉ trả cho ADMIN. */
   monthlyFee?: number;
+  /** Gửi email kết quả điểm danh cho học sinh sau mỗi buổi. Chỉ trả cho ADMIN. */
+  attendanceEmailEnabled?: boolean;
   // STUDENT only.
   attendedCount?: number;
   leaveCount?: number;

@@ -107,6 +107,48 @@ export const ATTENDANCE_COUNT_LABEL: Record<keyof ClassAttendanceCounts, string>
   absentNoCheckin: 'Vắng không điểm danh',
 };
 
+/** Kết quả điểm danh báo qua email — khớp enum AttendanceNotifyStatus phía BE. */
+export type AttendanceNotifyStatus = 'ATTENDED' | 'ON_LEAVE' | 'ABSENT';
+
+export type NotificationDeliveryStatus = 'PENDING' | 'SENT' | 'FAILED';
+
+/** ALL: gửi lần đầu. FAILED: gửi lại email lỗi. CHANGED: gửi lại cho HS có kết quả đổi. */
+export type AttendanceEmailSendMode = 'ALL' | 'FAILED' | 'CHANGED';
+
+export const ATTENDANCE_NOTIFY_STATUS_LABEL: Record<AttendanceNotifyStatus, string> = {
+  ATTENDED: 'Có mặt',
+  ON_LEAVE: 'Vắng có phép',
+  ABSENT: 'Vắng không phép',
+};
+
+export interface AttendanceEmailStudent {
+  studentId: number;
+  fullName: string | null;
+  email: string;
+  /** null khi buổi chưa kết thúc, hoặc HS không còn trong danh sách (vd bị khoá). */
+  currentStatus: AttendanceNotifyStatus | null;
+  /** Kết quả đã báo qua email — null = chưa gửi cho em này. */
+  sentStatus: AttendanceNotifyStatus | null;
+  deliveryStatus: NotificationDeliveryStatus | null;
+  sentAt: string | null;
+  error: string | null;
+  /** Kết quả đã đổi sau khi gửi (sửa điểm danh tay) hoặc HS mới có trong danh sách. */
+  changed: boolean;
+}
+
+export interface AttendanceEmailStatus {
+  /** Lớp có bật gửi email kết quả điểm danh không. */
+  enabled: boolean;
+  /** Đã hết giờ học và không còn phiên điểm danh nào đang mở. */
+  ended: boolean;
+  hasAttendanceSession: boolean;
+  notifiedAt: string | null;
+  /** Mốc hệ thống sẽ tự gửi — null khi đã gửi / lớp chưa bật / chưa mở điểm danh. */
+  scheduledFor: string | null;
+  counts: { sent: number; failed: number; pending: number; changed: number };
+  students: AttendanceEmailStudent[];
+}
+
 /** Chỉ số sắp xếp được ở bảng học sinh — khớp enum ClassStudentSortBy phía BE. */
 export const ATTENDANCE_SORT_KEYS = [
   'present',

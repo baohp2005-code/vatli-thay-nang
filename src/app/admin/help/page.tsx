@@ -211,6 +211,12 @@ export default async function AdminHelpPage() {
               có ngoại lệ cho một học sinh cụ thể thì sửa tay trực tiếp ở bảng học phí (mục{' '}
               <strong>Học phí</strong>).
             </p>
+            <p>
+              Tick <strong>&quot;Gửi email kết quả điểm danh cho học sinh&quot;</strong> nếu muốn
+              sau mỗi buổi học, từng học sinh của lớp nhận email báo có mặt / vắng có phép / vắng
+              không phép (mặc định tắt; bật hoặc tắt lại bất cứ lúc nào qua nút <strong>Sửa</strong>
+              ).
+            </p>
             <Shot src="lop-hoc/02-tao-lop.png" w={1280} h={900} alt="Form tạo lớp" />
           </Step>
           <Step n={3}>
@@ -354,9 +360,9 @@ export default async function AdminHelpPage() {
           <Step n={5}>
             <p>
               <strong>&quot;Danh sách xin nghỉ&quot;</strong>: các đơn xin nghỉ học sinh gửi cho
-              buổi này (Cả buổi / Rời sớm) — bấm <strong>&quot;Xác nhận&quot;</strong> để duyệt.
-              Buổi nghỉ có phép vẫn tính học phí như thường, hệ thống không tự điểm danh cho buổi
-              đó.
+              buổi này (Cả buổi / Rời sớm). Đơn có hiệu lực ngay, không cần duyệt; học sinh chỉ gửi
+              hoặc sửa được đơn trước khi buổi học kết thúc. Buổi nghỉ có phép vẫn tính học phí như
+              thường, hệ thống không tự điểm danh cho buổi đó.
             </p>
             <Shot
               src="buoi-hoc/05-yeu-cau-nghi.png"
@@ -364,6 +370,21 @@ export default async function AdminHelpPage() {
               h={900}
               alt="Danh sách xin nghỉ của buổi học"
             />
+          </Step>
+          <Step n={6}>
+            <p>
+              Thẻ <strong>&quot;Email kết quả điểm danh&quot;</strong> (khi lớp đã bật gửi email):
+              buổi học có mở điểm danh sẽ được hệ thống tự gửi email khoảng 30 phút sau giờ kết thúc
+              — khoảng chờ để kịp sửa điểm danh thủ công. Muốn gửi sớm hơn thì bấm{' '}
+              <strong>&quot;Gửi ngay&quot;</strong> sau khi buổi học kết thúc.
+            </p>
+            <p>
+              Sau khi gửi, thẻ hiện số email đã gửi / lỗi. Nếu sửa điểm danh của học sinh nào sau
+              khi đã gửi, thẻ báo <strong>&quot;Có thay đổi sau khi gửi&quot;</strong> — bấm{' '}
+              <strong>&quot;Gửi lại cho … học sinh có thay đổi&quot;</strong> để các em nhận kết quả
+              đúng; email lỗi (hết hạn mức gửi, địa chỉ sai…) gửi lại bằng nút{' '}
+              <strong>&quot;Gửi lại email lỗi&quot;</strong>.
+            </p>
           </Step>
         </Section>
       ),

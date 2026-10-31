@@ -6,6 +6,7 @@ import {
   CircleDollarSign,
   FileText,
   Hash,
+  Mail,
   Tag,
   Users as UsersIcon,
 } from 'lucide-react';
@@ -49,6 +50,19 @@ export default function ClassInfoTab({ classDetail }: Props) {
             label: 'Học phí / tháng',
             value: formatAmountVnd(classDetail.monthlyFee),
             icon: CircleDollarSign,
+          },
+        ]
+      : []),
+    ...(classDetail.attendanceEmailEnabled !== undefined
+      ? [
+          {
+            label: 'Email kết quả điểm danh',
+            value: classDetail.attendanceEmailEnabled ? (
+              <Badge variant="success">Đang bật</Badge>
+            ) : (
+              <Badge variant="secondary">Đang tắt</Badge>
+            ),
+            icon: Mail,
           },
         ]
       : []),

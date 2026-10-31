@@ -3,6 +3,8 @@ import { getClassSession } from '@/actions/v1/class-sessions/get-class-session';
 import { listAttendanceSessions } from '@/actions/v1/attendance/list-attendance-sessions';
 import { getAttendanceSummary } from '@/actions/v1/attendance/get-attendance-summary';
 import { listLeaveRequests } from '@/actions/v1/leave-requests/list-leave-requests';
+import { getAttendanceEmailStatus } from '@/actions/v1/attendance-notifications/get-attendance-email-status';
+import { getCurrentSession } from '@/lib/server/session';
 import ClassSessionDetailPageClient from './ClassSessionDetailPageClient';
 
 interface Props {
@@ -30,6 +32,10 @@ export default async function ClassSessionDetailPage({ params, searchParams }: P
   });
   const summaryPromise = getAttendanceSummary(classSessionId);
   const leaveRequestsPromise = listLeaveRequests(classSessionId, { page: 1, pageSize: 20 });
+  // getCurrentSession đã được layout gọi (React.cache) — không tốn thêm request.
+  const session = await getCurrentSession();
+  const emailStatusPromise =
+    session?.role === 'ADMIN' ? getAttendanceEmailStatus(classSessionId) : null;
 
   const classSession = await getClassSession(classSessionId);
   if (!classSession) notFound();
@@ -42,6 +48,7 @@ export default async function ClassSessionDetailPage({ params, searchParams }: P
       attendanceSessionsPromise={attendanceSessionsPromise}
       summaryPromise={summaryPromise}
       leaveRequestsPromise={leaveRequestsPromise}
+      emailStatusPromise={emailStatusPromise}
     />
   );
 }
