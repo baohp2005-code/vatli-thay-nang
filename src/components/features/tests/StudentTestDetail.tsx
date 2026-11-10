@@ -43,6 +43,7 @@ import type {
   StudentTestDetail as TDetail,
   TestFilePayload,
 } from '@/types/tests';
+import ClassRankCard from './ClassRankCard';
 import ScoreDistributionChart from './ScoreDistributionChart';
 import TestAttachmentViewer from './TestAttachmentViewer';
 import TestFileUploader from './TestFileUploader';
@@ -78,6 +79,7 @@ export default function StudentTestDetail({ courseId, testId, onBack }: Props) {
   const [starting, setStarting] = useState(false);
   // Đồng hồ đếm ngược thời gian làm bài — tick mỗi giây khi có lượt đang chạy.
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [clockOffsetMs, setClockOffsetMs] = useState(0);
   const mountedRef = useRef(true);
   const requestSeqRef = useRef(0);
 
@@ -111,6 +113,7 @@ export default function StudentTestDetail({ courseId, testId, onBack }: Props) {
     }
 
     setTest(res.data);
+    if (res.serverTime) setClockOffsetMs(new Date(res.serverTime).getTime() - Date.now());
     setLoading(false);
 
     // Chưa tới giờ thì BE chặn tab thống kê (403) — đừng gọi cho phí.
@@ -178,11 +181,11 @@ export default function StudentTestDetail({ courseId, testId, onBack }: Props) {
   // Giới hạn thời gian làm bài: đang mở mà CHƯA bấm Bắt đầu thì đề bị giấu (BE chốt),
   // chỉ hiện màn bắt đầu. Đã bắt đầu thì chạy đếm ngược tới hạn cá nhân.
   // Đang trong hạn nộp bù admin cấp — bỏ qua cả phase lẫn màn "Bắt đầu làm bài".
-  const reopened = test.myReopen !== null && deadlineMs !== null && deadlineMs > nowMs;
+  const remainingMs = deadlineMs === null ? null : Math.max(0, deadlineMs - nowMs - clockOffsetMs);
+  const reopened = test.myReopen !== null && remainingMs !== null && remainingMs > 0;
   const submittable = (ongoing || reopened) && !scheduled;
   const notStarted = ongoing && !test.myAttempt && !reopened;
-  const remainingMs = deadlineMs === null ? null : Math.max(0, deadlineMs - nowMs);
-  const expired = submittable && deadlineMs !== null && deadlineMs - nowMs <= 0;
+  const expired = submittable && remainingMs === 0;
   // Đã chấm thì không tự nộp lại được (BE chặn) — trừ khi giáo viên mở lại cho em đó.
   const gradedLocked = test.mySubmissionStatus === 'GRADED' && !reopened;
 
@@ -383,23 +386,33 @@ export default function StudentTestDetail({ courseId, testId, onBack }: Props) {
             <TabsContent value="result" className="mt-4">
               {hasResult ? (
                 <div className="space-y-4">
-                  <Card>
-                    <CardContent className="space-y-3 py-4 sm:py-6">
-                      <p className="text-muted-foreground text-sm">Điểm của bạn</p>
-                      <p className="text-3xl font-semibold">
-                        {test.myScore}
-                        <span className="text-muted-foreground text-lg"> / {test.maxScore}</span>
-                      </p>
-                      {test.myScore !== null && (
-                        <Progress
-                          value={(test.myScore / test.maxScore) * 100}
-                          indicatorClassName={
-                            SCORE_TIER_CLASS[scoreTier(test.myScore, test.maxScore)]
-                          }
-                        />
-                      )}
-                    </CardContent>
-                  </Card>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Card>
+                      <CardContent className="flex h-full flex-col justify-center space-y-3 py-4 sm:py-6">
+                        <p className="text-muted-foreground text-sm">Điểm của bạn</p>
+                        <p className="text-3xl font-semibold">
+                          {test.myScore}
+                          <span className="text-muted-foreground text-lg"> / {test.maxScore}</span>
+                        </p>
+                        {test.myScore !== null && (
+                          <Progress
+                            value={(test.myScore / test.maxScore) * 100}
+                            indicatorClassName={
+                              SCORE_TIER_CLASS[scoreTier(test.myScore, test.maxScore)]
+                            }
+                          />
+                        )}
+                      </CardContent>
+                    </Card>
+                    {participants && (
+                      <ClassRankCard
+                        rank={participants.myRank}
+                        gradedCount={participants.gradedCount}
+                        pendingCount={participants.pendingCount}
+                        minGraded={participants.minGradedForDistribution}
+                      />
+                    )}
+                  </div>
 
                   {test.mySubmission?.feedback && (
                     <Card>
@@ -729,6 +742,8 @@ function StatsTab({
               {participants.myScore !== null && (
                 <span className="text-muted-foreground ml-2 font-normal">
                   · điểm của bạn: {participants.myScore}/{maxScore}
+                  {participants.myRank &&
+                    ` · hạng ${participants.myRank.rank}/${participants.gradedCount}`}
                 </span>
               )}
             </p>

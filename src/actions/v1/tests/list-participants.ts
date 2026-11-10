@@ -16,7 +16,9 @@ const EMPTY: ParticipantsResult = {
   myScore: null,
   distribution: null,
   gradedCount: null,
+  pendingCount: null,
   minGradedForDistribution: 5,
+  myRank: null,
 };
 
 /**
@@ -29,12 +31,7 @@ const EMPTY: ParticipantsResult = {
  */
 export async function listParticipants(testId: number): Promise<ListParticipantsResponse> {
   // Mấy field ngoài `data` giống nhau ở mọi trang — lấy ở trang đầu.
-  let summary: Omit<ParticipantsResult, 'data' | 'meta'> = {
-    myScore: null,
-    distribution: null,
-    gradedCount: null,
-    minGradedForDistribution: EMPTY.minGradedForDistribution,
-  };
+  let summary: ParticipantsResult = EMPTY;
 
   try {
     const { data, meta } = await fetchAllPages<ParticipantRow>(async (page, pageSize) => {
@@ -42,17 +39,10 @@ export async function listParticipants(testId: number): Promise<ListParticipants
         params: { page, pageSize },
       });
       const result = res.data as ParticipantsResult;
-      if (page === 1) {
-        summary = {
-          myScore: result.myScore,
-          distribution: result.distribution,
-          gradedCount: result.gradedCount,
-          minGradedForDistribution: result.minGradedForDistribution,
-        };
-      }
+      if (page === 1) summary = result;
       return result;
     });
-    return { data, meta, ...summary, errors: [] };
+    return { ...summary, data, meta, errors: [] };
   } catch (error) {
     if (error instanceof AxiosError && error.response?.data) {
       return { ...EMPTY, errors: extractErrors(error.response.data) };

@@ -10,6 +10,8 @@ export interface GetTestResponse<T> {
   errors: string[];
   /** HTTP status của BE — trang cần phân biệt 404 (không tồn tại) với 403 (không có quyền). */
   status?: number;
+  /** Giờ server (Next) lúc trả — đồng hồ máy học sinh có thể lệch hàng giờ. */
+  serverTime?: string;
 }
 
 /**
@@ -25,7 +27,11 @@ export async function getTest<T extends TestDetail | StudentTestDetail = TestDet
 ): Promise<GetTestResponse<T>> {
   try {
     const res = await api.get(`/api/v1/tests/${testId}`);
-    return { data: (res.data as { data: T }).data, errors: [] };
+    return {
+      data: (res.data as { data: T }).data,
+      errors: [],
+      serverTime: new Date().toISOString(),
+    };
   } catch (error) {
     if (error instanceof AxiosError && error.response?.data) {
       return {

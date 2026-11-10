@@ -190,7 +190,17 @@ export interface ParticipantsResult {
   /** null khi chưa hết giờ HOẶC chưa đủ số bài đã chấm (ẩn danh). */
   distribution: ScoreBin[] | null;
   gradedCount: number | null;
+  /** Bài đã nộp nhưng chưa chấm; null khi bài chưa kết thúc. */
+  pendingCount: number | null;
   minGradedForDistribution: number;
+  /** Cùng điều kiện với distribution, và chỉ khi bài của mình đã chấm. */
+  myRank: ScoreRank | null;
+}
+
+export interface ScoreRank {
+  rank: number;
+  /** Số bạn KHÁC có cùng điểm. */
+  tiedWith: number;
 }
 
 export interface PageMeta {

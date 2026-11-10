@@ -40,8 +40,7 @@ interface Props {
   course: CourseDetail;
   initialNodeId: number | null;
   initialTab: LearnTab;
-  /** Mở thẳng một bài trong tab bài tập / kiểm tra (link từ email). */
-  initialTestId?: number | null;
+  initialTestId: number | null;
 }
 
 function countFiles(nodes: CourseNodeTree[]): number {
@@ -51,12 +50,7 @@ function countFiles(nodes: CourseNodeTree[]): number {
   );
 }
 
-export default function LearnClient({
-  course,
-  initialNodeId,
-  initialTab,
-  initialTestId = null,
-}: Props) {
+export default function LearnClient({ course, initialNodeId, initialTab, initialTestId }: Props) {
   const router = useRouter();
   const isEnrolled = course.isEnrolled === true;
   const flat = useMemo(() => flattenTree(course, isEnrolled), [course, isEnrolled]);
@@ -68,28 +62,35 @@ export default function LearnClient({
   // Chuyển đổi cấp cao giữa cây nội dung và bài kiểm tra. Đồng bộ ?tab= trên URL để
   // reload / chia sẻ link giữ nguyên tab đang xem (mặc định 'content').
   const [tab, setTab] = useState<LearnTab>(initialTab);
+  const [openTestId, setOpenTestId] = useState<number | null>(initialTestId);
 
   const active = resolveActiveFile(flat, activeNodeId);
   const prev = active ? prevFile(flat, active.node.id) : null;
   const next = active ? nextFile(flat, active.node.id) : null;
 
-  // Ghi cả tab + item vào URL để đổi cái này không xoá cái kia.
-  function syncUrl(nextTab: LearnTab, nextNodeId: number | null) {
+  // Ghi cả tab + item + test vào URL để đổi cái này không xoá cái kia.
+  function syncUrl(nextTab: LearnTab, nextNodeId: number | null, nextTestId: number | null) {
     const params = new URLSearchParams();
     params.set('tab', nextTab);
     if (nextNodeId != null) params.set('item', String(nextNodeId));
+    if (nextTab === 'exams' && nextTestId != null) params.set('test', String(nextTestId));
     router.replace(`?${params.toString()}`, { scroll: false });
   }
 
   function changeTab(nextTab: LearnTab) {
     setTab(nextTab);
-    syncUrl(nextTab, activeNodeId);
+    syncUrl(nextTab, activeNodeId, openTestId);
+  }
+
+  function changeOpenTest(testId: number | null) {
+    setOpenTestId(testId);
+    syncUrl(tab, activeNodeId, testId);
   }
 
   function selectNode(nodeId: number) {
     setActiveNodeId(nodeId);
     setSheetOpen(false);
-    syncUrl(tab, nodeId);
+    syncUrl(tab, nodeId, openTestId);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0 });
   }
 
@@ -157,7 +158,11 @@ export default function LearnClient({
             {course.title}
           </h1>
           {isEnrolled ? (
-            <StudentTestsPanel courseId={course.id} initialTestId={initialTestId} />
+            <StudentTestsPanel
+              courseId={course.id}
+              openTestId={openTestId}
+              onOpenTestChange={changeOpenTest}
+            />
           ) : (
             <Card>
               <CardContent className="text-muted-foreground flex flex-col items-center gap-2 py-12 text-sm">
