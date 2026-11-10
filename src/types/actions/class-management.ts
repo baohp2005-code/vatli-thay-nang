@@ -39,6 +39,8 @@ export interface ICreateClassPayload {
   description?: string;
   monthlyFee?: number;
   attendanceEmailEnabled?: boolean;
+  scheduleEmailEnabled?: boolean;
+  monthlyReportEmailEnabled?: boolean;
 }
 
 export interface IUpdateClassPayload {
@@ -48,6 +50,8 @@ export interface IUpdateClassPayload {
   status?: ClassStatus;
   monthlyFee?: number;
   attendanceEmailEnabled?: boolean;
+  scheduleEmailEnabled?: boolean;
+  monthlyReportEmailEnabled?: boolean;
 }
 
 export interface ClassStudentListRow {

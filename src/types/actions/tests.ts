@@ -6,6 +6,7 @@ import type {
   SubmissionRow,
   TestFilePayload,
   TestStats,
+  TestType,
 } from '@/types/tests';
 
 export interface IListTestsResult<T = AdminTestRow | StudentTestRow> {
@@ -16,13 +17,20 @@ export interface IListTestsResult<T = AdminTestRow | StudentTestRow> {
 export interface ICreateTestPayload {
   title: string;
   description?: string;
+  /** Mặc định EXAM. HOMEWORK: không chấm điểm, không đồng hồ — bỏ maxScore/durationMinutes. */
+  type?: TestType;
+  /**
+   * Gửi email cho học sinh. Bài tập: báo bài mới + nhắc hạn nộp trước 24h cho em chưa nộp.
+   * Bài kiểm tra: báo điểm vài phút sau lần chấm / sửa điểm cuối.
+   */
+  emailNotify?: boolean;
   /** ISO 8601. BE chặn nếu endTime <= startTime. */
   startTime: string;
   endTime: string;
-  /** 0.01 … 999.99 (Decimal(5,2) ở BE). */
-  maxScore: number;
-  /** Thời gian làm bài (phút), 1 … 1440. */
-  durationMinutes: number;
+  /** 0.01 … 999.99 (Decimal(5,2) ở BE). Bắt buộc với bài kiểm tra. */
+  maxScore?: number;
+  /** Thời gian làm bài (phút), 1 … 1440. Bắt buộc với bài kiểm tra. */
+  durationMinutes?: number;
   attachments?: TestFilePayload[];
 }
 
@@ -38,6 +46,12 @@ export interface IUpsertSubmissionPayload {
 export interface IGradeSubmissionPayload {
   score: number;
   feedback?: string;
+}
+
+export interface IGradeSubmissionResult {
+  errors: string[];
+  /** ISO — lúc email báo điểm sẽ được gửi; null = bài này không gửi email. */
+  scoreEmailAt?: string | null;
 }
 
 export interface IListSubmissionsParams {

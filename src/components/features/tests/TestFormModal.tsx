@@ -18,8 +18,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { handleActionErrors, handleActionResult } from '@/lib/actions';
-import type { TestFilePayload } from '@/types/tests';
+import { cn } from '@/lib/utils';
+import type { ICreateTestPayload } from '@/types/actions/tests';
+import {
+  SCORE_EMAIL_DELAY_MINUTES,
+  TEST_TYPE_LABEL,
+  type TestFilePayload,
+  type TestType,
+} from '@/types/tests';
 import TestFileUploader from './TestFileUploader';
 
 interface Props {
@@ -28,8 +36,21 @@ interface Props {
   courseId: number;
   /** Có testId = sửa, không có = tạo mới. */
   testId?: number;
+  /** Loại chọn sẵn khi tạo mới (nút "Tạo bài tập" / "Tạo bài kiểm tra"). */
+  initialType?: TestType;
   onSaved?: () => void;
 }
+
+const TYPE_HINT: Record<TestType, string> = {
+  EXAM: 'Có chấm điểm. Học sinh bấm Bắt đầu mới thấy đề, đồng hồ làm bài chạy từ lúc đó.',
+  HOMEWORK: 'Không chấm điểm, không giới hạn thời gian — học sinh chỉ cần nộp bài trước hạn.',
+};
+
+const EMAIL_HINT: Record<TestType, string> = {
+  EXAM: `Sau khi chấm: tự gửi email báo điểm (kèm nhận xét) cho từng học sinh, ${SCORE_EMAIL_DELAY_MINUTES} phút sau lần lưu điểm cuối cùng — kịp sửa nếu lỡ nhập nhầm. Sửa điểm sau khi đã gửi thì học sinh nhận thêm email cập nhật điểm.`,
+  HOMEWORK:
+    'Ngay khi lưu: báo bài tập mới kèm ngày mở và hạn nộp. Trước hạn 24 giờ: nhắc những em chưa nộp.',
+};
 
 /** BE nhận ISO 8601; input datetime-local cho ra 'YYYY-MM-DDTHH:mm' theo giờ máy. */
 function toIso(local: string): string {
@@ -43,7 +64,14 @@ function toLocalInput(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export default function TestFormModal({ open, onOpenChange, courseId, testId, onSaved }: Props) {
+export default function TestFormModal({
+  open,
+  onOpenChange,
+  courseId,
+  testId,
+  initialType = 'EXAM',
+  onSaved,
+}: Props) {
   const router = useRouter();
   const isEdit = testId !== undefined;
 
@@ -51,6 +79,10 @@ export default function TestFormModal({ open, onOpenChange, courseId, testId, on
   const [saving, setSaving] = useState(false);
   // File chưa lên xong mà bấm Lưu thì bài lưu thiếu đề, còn file đã lên thành rác trên R2.
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [type, setType] = useState<TestType>(initialType);
+  // Bài mới mặc định bật email (bài tập: báo bài + nhắc hạn; bài kiểm tra: báo điểm) — tắt được.
+  // Bài cũ thì nạp đúng giá trị đang lưu.
+  const [emailNotify, setEmailNotify] = useState(!isEdit);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [startTime, setStartTime] = useState('');
@@ -78,6 +110,8 @@ export default function TestFormModal({ open, onOpenChange, courseId, testId, on
         return;
       }
       const t = res.data;
+      setType(t.type);
+      setEmailNotify(t.emailNotify ?? false);
       setTitle(t.title);
       setDescription(t.description ?? '');
       setStartTime(toLocalInput(t.startTime));
@@ -102,27 +136,33 @@ export default function TestFormModal({ open, onOpenChange, courseId, testId, on
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
+    const isExam = type === 'EXAM';
     const score = Number(maxScore);
-    if (!title.trim()) return handleActionErrors(['Chưa nhập tên bài kiểm tra']);
+    if (!title.trim())
+      return handleActionErrors([`Chưa nhập tên ${TEST_TYPE_LABEL[type].toLowerCase()}`]);
     if (!startTime || !endTime) return handleActionErrors(['Chưa chọn thời gian làm bài']);
     if (new Date(endTime) <= new Date(startTime)) {
       return handleActionErrors(['Thời gian kết thúc phải sau thời gian bắt đầu']);
     }
-    if (!Number.isFinite(score) || score <= 0) {
-      return handleActionErrors(['Điểm tối đa phải lớn hơn 0']);
-    }
     const duration = Number(durationMinutes);
-    if (!Number.isInteger(duration) || duration < 1 || duration > 1440) {
-      return handleActionErrors(['Thời gian làm bài phải từ 1 đến 1440 phút']);
+    if (isExam) {
+      if (!Number.isFinite(score) || score <= 0) {
+        return handleActionErrors(['Điểm tối đa phải lớn hơn 0']);
+      }
+      if (!Number.isInteger(duration) || duration < 1 || duration > 1440) {
+        return handleActionErrors(['Thời gian làm bài phải từ 1 đến 1440 phút']);
+      }
     }
 
-    const payload = {
+    const payload: ICreateTestPayload = {
       title: title.trim(),
       description: description.trim() || undefined,
+      type,
+      emailNotify,
       startTime: toIso(startTime),
       endTime: toIso(endTime),
-      maxScore: score,
-      durationMinutes: duration,
+      // Bài tập không chấm điểm / không đồng hồ — BE tự điền mặc định khi tạo.
+      ...(isExam ? { maxScore: score, durationMinutes: duration } : {}),
       attachments,
     };
 
@@ -139,7 +179,9 @@ export default function TestFormModal({ open, onOpenChange, courseId, testId, on
           onSaved?.();
           router.refresh();
         },
-        isEdit ? 'Đã cập nhật bài kiểm tra' : 'Đã tạo bài kiểm tra',
+        isEdit
+          ? `Đã cập nhật ${TEST_TYPE_LABEL[type].toLowerCase()}`
+          : `Đã tạo ${TEST_TYPE_LABEL[type].toLowerCase()}${!isExam && emailNotify ? ' — email đang được gửi cho học sinh' : ''}`,
       );
     } finally {
       setSaving(false);
@@ -150,7 +192,9 @@ export default function TestFormModal({ open, onOpenChange, courseId, testId, on
     <Dialog open={open} onOpenChange={(o) => !saving && !uploadingFiles && onOpenChange(o)}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Sửa bài kiểm tra' : 'Tạo bài kiểm tra'}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? 'Sửa' : 'Tạo'} {TEST_TYPE_LABEL[type].toLowerCase()}
+          </DialogTitle>
           <DialogDescription>
             Học sinh chỉ xem được đề trong khoảng thời gian làm bài. Hết giờ là khoá nộp.
           </DialogDescription>
@@ -176,12 +220,42 @@ export default function TestFormModal({ open, onOpenChange, courseId, testId, on
         ) : (
           <form onSubmit={handleSubmit} className="min-w-0 space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="test-title">Tên bài kiểm tra</Label>
+              <Label id="test-type-label">Loại</Label>
+              <div
+                role="radiogroup"
+                aria-labelledby="test-type-label"
+                className="bg-muted grid grid-cols-2 gap-1 rounded-lg p-1"
+              >
+                {(['HOMEWORK', 'EXAM'] as const).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={type === value}
+                    onClick={() => setType(value)}
+                    className={cn(
+                      'cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium transition',
+                      type === value
+                        ? 'bg-background text-primary shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {TEST_TYPE_LABEL[value]}
+                  </button>
+                ))}
+              </div>
+              <p className="text-muted-foreground text-xs">{TYPE_HINT[type]}</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="test-title">Tên {TEST_TYPE_LABEL[type].toLowerCase()}</Label>
               <Input
                 id="test-title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Kiểm tra 15 phút — Chương 1"
+                placeholder={
+                  type === 'EXAM' ? 'Kiểm tra 15 phút — Chương 1' : 'Bài tập về nhà — Chương 1'
+                }
                 maxLength={200}
               />
             </div>
@@ -202,7 +276,7 @@ export default function TestFormModal({ open, onOpenChange, courseId, testId, on
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="test-start">Bắt đầu</Label>
+                <Label htmlFor="test-start">{type === 'EXAM' ? 'Bắt đầu' : 'Mở từ'}</Label>
                 <Input
                   id="test-start"
                   type="datetime-local"
@@ -211,7 +285,7 @@ export default function TestFormModal({ open, onOpenChange, courseId, testId, on
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="test-end">Kết thúc</Label>
+                <Label htmlFor="test-end">{type === 'EXAM' ? 'Kết thúc' : 'Hạn nộp'}</Label>
                 <Input
                   id="test-end"
                   type="datetime-local"
@@ -221,7 +295,27 @@ export default function TestFormModal({ open, onOpenChange, courseId, testId, on
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="flex items-start gap-3 rounded-md border p-3">
+              <Checkbox
+                id="test-email-notify"
+                checked={emailNotify}
+                onCheckedChange={(v) => setEmailNotify(v === true)}
+                className="mt-0.5"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="test-email-notify" className="cursor-pointer">
+                  {type === 'EXAM' ? 'Gửi email báo điểm cho học sinh' : 'Gửi email cho học sinh'}
+                </Label>
+                <p className="text-muted-foreground text-xs">{EMAIL_HINT[type]}</p>
+              </div>
+            </div>
+
+            <div
+              className={cn(
+                'grid grid-cols-1 gap-4 sm:grid-cols-2',
+                type === 'HOMEWORK' && 'hidden',
+              )}
+            >
               <div className="space-y-2">
                 <Label htmlFor="test-max" className="block">
                   Điểm tối đa
@@ -287,7 +381,7 @@ export default function TestFormModal({ open, onOpenChange, courseId, testId, on
                     ? 'Đang lưu…'
                     : isEdit
                       ? 'Lưu thay đổi'
-                      : 'Tạo bài kiểm tra'}
+                      : `Tạo ${TEST_TYPE_LABEL[type].toLowerCase()}`}
               </Button>
             </DialogFooter>
           </form>

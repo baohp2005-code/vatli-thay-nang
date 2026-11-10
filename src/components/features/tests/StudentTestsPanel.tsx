@@ -15,6 +15,8 @@ import StudentTestDetail from './StudentTestDetail';
 
 interface Props {
   courseId: number;
+  /** Mở thẳng bài này (link từ email: ?tab=exams&test=<id>). */
+  initialTestId?: number | null;
 }
 
 const PHASE: Record<TestPhase, { text: string; variant: 'secondary' | 'default' | 'outline' }> = {
@@ -63,10 +65,10 @@ function CountdownBadge({ endTime }: { endTime: string }) {
   );
 }
 
-export default function StudentTestsPanel({ courseId }: Props) {
+export default function StudentTestsPanel({ courseId, initialTestId = null }: Props) {
   const [tests, setTests] = useState<StudentTestRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [openId, setOpenId] = useState<number | null>(null);
+  const [openId, setOpenId] = useState<number | null>(initialTestId);
   const mountedRef = useRef(true);
   const requestSeqRef = useRef(0);
 
@@ -177,7 +179,7 @@ export default function StudentTestsPanel({ courseId }: Props) {
                     <span aria-hidden className="mx-1.5">
                       ·
                     </span>
-                    Làm bài {t.durationMinutes} phút
+                    {t.type === 'HOMEWORK' ? 'Bài tập' : `Làm bài ${t.durationMinutes} phút`}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

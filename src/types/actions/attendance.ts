@@ -125,7 +125,10 @@ export interface AttendanceEmailStudent {
   studentId: number;
   fullName: string | null;
   email: string;
-  /** null khi buổi chưa kết thúc, hoặc HS không còn trong danh sách (vd bị khoá). */
+  /**
+   * Kết quả tính theo điểm danh hiện tại — khi buổi còn đang diễn ra, ABSENT nghĩa là
+   * "chưa được tick". null khi HS không còn trong danh sách (vd bị khoá).
+   */
   currentStatus: AttendanceNotifyStatus | null;
   /** Kết quả đã báo qua email — null = chưa gửi cho em này. */
   sentStatus: AttendanceNotifyStatus | null;
@@ -145,7 +148,14 @@ export interface AttendanceEmailStatus {
   notifiedAt: string | null;
   /** Mốc hệ thống sẽ tự gửi — null khi đã gửi / lớp chưa bật / chưa mở điểm danh. */
   scheduledFor: string | null;
-  counts: { sent: number; failed: number; pending: number; changed: number };
+  counts: {
+    sent: number;
+    failed: number;
+    pending: number;
+    changed: number;
+    /** Chưa có mặt cũng chưa xin nghỉ — gửi ngay lúc này thì các em nhận "vắng không phép". */
+    unresolved: number;
+  };
   students: AttendanceEmailStudent[];
 }
 

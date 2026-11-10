@@ -8,8 +8,12 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  Clock,
   Download,
   FileText,
+  Mail,
+  MailCheck,
+  MailX,
   Pencil,
   Sparkles,
   Target,
@@ -44,10 +48,21 @@ import {
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { handleActionErrors, handleActionResult, handleActionSuccess } from '@/lib/actions';
-import { formatDateTime as formatDateTimeFull } from '@/lib/format';
+import {
+  formatDateTime as formatDateTimeFull,
+  formatDateTimeShort,
+  formatTime,
+} from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { SortOrder } from '@/types/auth';
-import type { SubmissionRow, TestDetail, TestFile, TestPhase } from '@/types/tests';
+import {
+  SCORE_EMAIL_DELAY_MINUTES,
+  type ScoreEmailStatus,
+  type SubmissionRow,
+  type TestDetail,
+  type TestFile,
+  type TestPhase,
+} from '@/types/tests';
 import ScoreDistributionChart from './ScoreDistributionChart';
 import TestAttachmentViewer, { GRADING_MODAL_SIZE } from './TestAttachmentViewer';
 import TestFormModal from './TestFormModal';
@@ -125,11 +140,23 @@ export function TestHeaderBar({ courseId, test }: { courseId: number; test: Test
           <span aria-hidden className="text-input-border">
             ·
           </span>
-          <span>Thang điểm {test.maxScore}</span>
-          <span aria-hidden className="text-input-border">
-            ·
-          </span>
-          <span>Làm bài {test.durationMinutes} phút</span>
+          {test.type === 'HOMEWORK' ? (
+            <span>
+              Bài tập · {test.emailNotify ? 'có email báo bài + nhắc hạn nộp' : 'không gửi email'}
+            </span>
+          ) : (
+            <>
+              <span>Thang điểm {test.maxScore}</span>
+              <span aria-hidden className="text-input-border">
+                ·
+              </span>
+              <span>Làm bài {test.durationMinutes} phút</span>
+              <span aria-hidden className="text-input-border">
+                ·
+              </span>
+              <span>{test.emailNotify ? 'Có email báo điểm' : 'Không gửi email báo điểm'}</span>
+            </>
+          )}
           <Badge variant={phase.variant}>{phase.text}</Badge>
         </div>
       </div>
@@ -275,12 +302,38 @@ export default function AdminTestDetailClient({ courseId, test, submissionsPromi
     return rows.find((r) => r.studentId === id) ?? null;
   }, [queue, rows]);
 
-  const refresh = useCallback(async () => {
-    const res = await listSubmissions(test.id);
-    if (res.errors.length) return handleActionErrors(res.errors);
-    setRows(res.data);
-    setStats(res.stats);
-  }, [test.id]);
+  const refresh = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const res = await listSubmissions(test.id);
+      if (res.errors.length) {
+        if (!opts?.silent) handleActionErrors(res.errors);
+        return;
+      }
+      setRows(res.data);
+      setStats(res.stats);
+    },
+    [test.id],
+  );
+
+  // Email báo điểm đang chờ / đang gửi: tự tải lại ngay sau mốc gửi để cột trạng thái tự
+  // chuyển sang "Đã gửi" mà admin không phải F5. Không có email nào đang chờ thì không hẹn.
+  useEffect(() => {
+    const now = Date.now();
+    const next = rows.reduce<number | null>((soonest, r) => {
+      const s = r.scoreEmail;
+      let at: number | null = null;
+      if (s?.state === 'SCHEDULED' && s.at) at = new Date(s.at).getTime() + 15_000;
+      else if (s?.state === 'PENDING') at = now + 10_000;
+      return at !== null && (soonest === null || at < soonest) ? at : soonest;
+    }, null);
+    if (next === null) return;
+    // Quá mốc mà vẫn chưa gửi (BE đang bận / tạm tắt) thì thưa ra, không dội request.
+    const delay = next > now ? Math.min(next - now, 10 * 60_000) : 30_000;
+    const id = window.setTimeout(() => void refresh({ silent: true }), delay);
+    return () => window.clearTimeout(id);
+  }, [rows, refresh]);
+
+  const scoreEmailEnabled = test.type === 'EXAM' && !!test.emailNotify;
 
   // Mở lại là quyền ADMIN (BE trả 403 cho trợ giảng), và chỉ có nghĩa khi bài đã mở.
   const canReopen = !isTA && test.phase !== 'SCHEDULED';
@@ -459,6 +512,9 @@ export default function AdminTestDetailClient({ courseId, test, submissionsPromi
                           {r.score}/{test.maxScore}
                         </strong>
                       )}
+                      {r.scoreEmail && (
+                        <ScoreEmailLine status={r.scoreEmail} className="mt-1 justify-center" />
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -521,6 +577,8 @@ export default function AdminTestDetailClient({ courseId, test, submissionsPromi
           courseId={courseId}
           testId={test.id}
           maxScore={test.maxScore}
+          isExam={test.type === 'EXAM'}
+          scoreEmailEnabled={scoreEmailEnabled}
           row={currentRow}
           index={queue.pos}
           total={queue.ids.length}
@@ -595,10 +653,45 @@ function StatCard({
   );
 }
 
+/** Trạng thái email báo điểm của một học sinh — dòng nhỏ dưới điểm / trong hộp chấm bài. */
+function ScoreEmailLine({ status, className }: { status: ScoreEmailStatus; className?: string }) {
+  const at = status.at;
+  const view = {
+    SCHEDULED: {
+      icon: Clock,
+      tone: 'text-amber-700',
+      text: `${status.isUpdate ? 'Email cập nhật điểm' : 'Email báo điểm'} gửi lúc ${at ? formatTime(at) : '—'}`,
+    },
+    PENDING: { icon: Mail, tone: 'text-muted-foreground', text: 'Đang gửi email báo điểm…' },
+    SENT: {
+      icon: MailCheck,
+      tone: 'text-emerald-700',
+      text: `Đã gửi email${at ? ` ${formatDateTimeShort(at)}` : ''}`,
+    },
+    FAILED: { icon: MailX, tone: 'text-destructive', text: 'Gửi email lỗi' },
+  }[status.state];
+  const Icon = view.icon;
+  return (
+    <span
+      className={cn('flex items-center gap-1 text-xs', view.tone, className)}
+      title={
+        status.state === 'FAILED'
+          ? `${status.error ?? 'Gửi email thất bại'} — gửi lại ở mục Email tự động`
+          : undefined
+      }
+    >
+      <Icon className="size-3.5 shrink-0" />
+      {view.text}
+    </span>
+  );
+}
+
 function GradingDialog({
   courseId,
   testId,
   maxScore,
+  isExam,
+  scoreEmailEnabled,
   row,
   index,
   total,
@@ -611,6 +704,9 @@ function GradingDialog({
   courseId: number;
   testId: number;
   maxScore: number;
+  isExam: boolean;
+  /** Bài kiểm tra bật email báo điểm. */
+  scoreEmailEnabled: boolean;
   row: SubmissionRow;
   index: number;
   total: number;
@@ -647,7 +743,11 @@ function GradingDialog({
       });
       if (res.errors.length) return handleActionErrors(res.errors);
 
-      handleActionSuccess('Đã chấm điểm');
+      handleActionSuccess(
+        res.scoreEmailAt
+          ? `Đã chấm điểm — email báo điểm sẽ gửi lúc ${formatTime(res.scoreEmailAt)}`
+          : 'Đã chấm điểm',
+      );
       // Phải chờ tải lại xong rồi mới sang bài kế: chuyển sớm thì dialog mở ra trên dữ
       // liệu cũ và điểm vừa nhập vẫn còn nằm trong ô.
       await onGraded();
@@ -744,6 +844,27 @@ function GradingDialog({
               >
                 {saving ? 'Đang lưu…' : 'Lưu điểm'}
               </Button>
+
+              {scoreEmailEnabled ? (
+                <div className="text-muted-foreground flex gap-2 rounded-md border border-dashed p-2.5 text-xs">
+                  <Mail className="mt-0.5 size-3.5 shrink-0" />
+                  <div className="min-w-0 space-y-1.5">
+                    <p>
+                      Email báo điểm tự gửi cho học sinh {SCORE_EMAIL_DELAY_MINUTES} phút sau lần
+                      lưu điểm cuối cùng. Sửa điểm trước lúc đó thì học sinh chỉ nhận điểm mới; sửa
+                      sau khi đã gửi thì học sinh nhận thêm email cập nhật điểm.
+                    </p>
+                    {row.scoreEmail && <ScoreEmailLine status={row.scoreEmail} />}
+                  </div>
+                </div>
+              ) : (
+                isExam && (
+                  <p className="text-muted-foreground text-xs">
+                    Bài kiểm tra này đang tắt email báo điểm — bật ở nút <strong>Sửa</strong> của
+                    bài.
+                  </p>
+                )
+              )}
 
               <div className="flex items-center justify-between gap-2">
                 <Button

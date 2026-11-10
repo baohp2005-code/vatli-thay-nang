@@ -170,6 +170,8 @@ export default function StudentTestDetail({ courseId, testId, onBack }: Props) {
   const scheduled = test.phase === 'SCHEDULED';
   const ongoing = test.phase === 'ONGOING';
   const ended = test.phase === 'ENDED';
+  // Bài tập: không có màn "Bắt đầu" (BE trả sẵn myAttempt với hạn = endTime), không thang điểm.
+  const isHomework = test.type === 'HOMEWORK';
   // Chấm xong là thấy điểm + nhận xét ngay, không chờ bài kết thúc.
   const hasResult = test.mySubmissionStatus === 'GRADED';
 
@@ -215,11 +217,17 @@ export default function StudentTestDetail({ courseId, testId, onBack }: Props) {
           <span aria-hidden className="text-input-border">
             ·
           </span>
-          <span>Thang điểm {test.maxScore}</span>
-          <span aria-hidden className="text-input-border">
-            ·
-          </span>
-          <span>Làm bài {test.durationMinutes} phút</span>
+          {isHomework ? (
+            <span>Bài tập — chỉ cần nộp trước hạn</span>
+          ) : (
+            <>
+              <span>Thang điểm {test.maxScore}</span>
+              <span aria-hidden className="text-input-border">
+                ·
+              </span>
+              <span>Làm bài {test.durationMinutes} phút</span>
+            </>
+          )}
           <Badge variant={ongoing ? 'default' : ended ? 'secondary' : 'outline'}>
             {scheduled ? 'Sắp diễn ra' : ongoing ? 'Đang mở' : 'Đã kết thúc'}
           </Badge>
@@ -299,7 +307,12 @@ export default function StudentTestDetail({ courseId, testId, onBack }: Props) {
             >
               {expired ? <TimerOff className="size-4" /> : <AlarmClock className="size-4" />}
               {expired ? (
-                <span>Đã hết thời gian làm bài.</span>
+                <span>{isHomework ? 'Đã hết hạn nộp bài.' : 'Đã hết thời gian làm bài.'}</span>
+              ) : isHomework && !reopened ? (
+                <span>
+                  Hạn nộp {formatDateTimeShort(test.endTime)} — còn{' '}
+                  <span className="tabular-nums">{formatRemaining(remainingMs)}</span>.
+                </span>
               ) : (
                 <span>
                   Còn lại <span className="tabular-nums">{formatRemaining(remainingMs)}</span> — hết
@@ -466,6 +479,8 @@ function formatRemaining(ms: number): string {
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
   const pad = (n: number) => String(n).padStart(2, '0');
+  // Bài tập có thể mở nhiều ngày — "120:00:00" khó đọc hơn "5 ngày 0:00:00".
+  if (h >= 24) return `${Math.floor(h / 24)} ngày ${h % 24}:${pad(m)}:${pad(s)}`;
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 

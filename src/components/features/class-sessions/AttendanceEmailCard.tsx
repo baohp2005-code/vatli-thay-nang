@@ -37,9 +37,15 @@ const CONFIRM_TITLE: Record<AttendanceEmailSendMode, string> = {
   CHANGED: 'Gửi lại cho học sinh có thay đổi?',
 };
 
-function confirmDescription(mode: AttendanceEmailSendMode, count: number): string {
+function confirmDescription(
+  mode: AttendanceEmailSendMode,
+  count: number,
+  unresolved: number,
+): string {
   if (mode === 'ALL') {
-    return `Hệ thống sẽ gửi email kết quả điểm danh tới ${count} học sinh. Email đã gửi không thể thu hồi.`;
+    const base = `Hệ thống sẽ gửi email kết quả điểm danh tới ${count} học sinh ngay bây giờ (không chờ hết buổi). Email đã gửi không thể thu hồi.`;
+    if (unresolved === 0) return base;
+    return `${base} Còn ${unresolved} học sinh chưa được điểm danh hoặc ghi nhận nghỉ có phép — các em sẽ nhận email "Vắng không phép". Nếu các em điểm danh sau đó, dùng nút "Gửi lại cho học sinh có thay đổi".`;
   }
   if (mode === 'FAILED') {
     return `Gửi lại email cho ${count} học sinh bị lỗi, theo kết quả điểm danh hiện tại.`;
@@ -73,6 +79,9 @@ export default function AttendanceEmailCard({ classSessionId, status }: Props) {
 
   const attention =
     status?.students.filter((s) => s.deliveryStatus === 'FAILED' || s.changed) ?? [];
+  const resolvedCount = status
+    ? status.students.filter((s) => s.currentStatus && s.currentStatus !== 'ABSENT').length
+    : 0;
 
   return (
     <Card>
@@ -119,27 +128,34 @@ export default function AttendanceEmailCard({ classSessionId, status }: Props) {
             </p>
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm">
-                Hẹn tự động gửi lúc{' '}
-                <span className="font-medium">
-                  {status.scheduledFor ? formatDateTime(status.scheduledFor) : '—'}
-                </span>
-                .
-                {!status.ended && (
-                  <span className="text-muted-foreground">
-                    {' '}
-                    Có thể gửi ngay sau khi buổi học và phiên điểm danh kết thúc.
+              <div className="space-y-1 text-sm">
+                <p>
+                  Hẹn tự động gửi lúc{' '}
+                  <span className="font-medium">
+                    {status.scheduledFor ? formatDateTime(status.scheduledFor) : '—'}
                   </span>
-                )}
-              </p>
-              {status.ended && (
-                <Button
-                  onClick={() => setConfirm({ mode: 'ALL', count: status.students.length })}
-                  className="cursor-pointer"
-                >
-                  <Send className="size-4" /> Gửi ngay
-                </Button>
-              )}
+                  .
+                </p>
+                {/* Tick xong cả lớp là gửi được luôn, không phải chờ hết phiên / hết buổi. */}
+                <p className="text-muted-foreground">
+                  Đã có kết quả{' '}
+                  <span className="text-foreground font-medium">
+                    {resolvedCount}/{status.students.length}
+                  </span>{' '}
+                  học sinh
+                  {status.counts.unresolved > 0
+                    ? ` — còn ${status.counts.unresolved} em chưa điểm danh / chưa ghi nhận nghỉ.`
+                    : ' — đã đủ cả lớp, có thể gửi ngay.'}
+                </p>
+              </div>
+              <Button
+                onClick={() => setConfirm({ mode: 'ALL', count: status.students.length })}
+                disabled={status.students.length === 0}
+                variant={status.counts.unresolved > 0 && !status.ended ? 'outline' : 'default'}
+                className="cursor-pointer"
+              >
+                <Send className="size-4" /> Gửi ngay
+              </Button>
             </div>
           )
         ) : (
@@ -244,7 +260,9 @@ export default function AttendanceEmailCard({ classSessionId, status }: Props) {
           <AlertDialogHeader>
             <AlertDialogTitle>{confirm ? CONFIRM_TITLE[confirm.mode] : ''}</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirm ? confirmDescription(confirm.mode, confirm.count) : ''}
+              {confirm
+                ? confirmDescription(confirm.mode, confirm.count, status?.counts.unresolved ?? 0)
+                : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

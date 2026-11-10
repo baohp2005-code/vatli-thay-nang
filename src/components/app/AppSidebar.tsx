@@ -13,6 +13,7 @@ import {
   BookOpen,
   Wallet,
   CircleHelp,
+  MailCheck,
 } from 'lucide-react';
 import { ASSETS } from '@/constants/assets';
 import {
@@ -46,6 +47,12 @@ export const ADMIN_NAV: NavItem[] = [
   },
   { label: 'Học phí', href: '/admin/tuition', icon: Wallet, section: 'Quản lý' },
   { label: 'Khóa học', href: '/admin/courses', icon: BookOpen, section: 'Quản lý' },
+  {
+    label: 'Email tự động',
+    href: '/admin/email-notifications',
+    icon: MailCheck,
+    section: 'Quản lý',
+  },
   { label: 'Thông tin cá nhân', href: '/admin/profile', icon: UserRound, section: 'Tài khoản' },
   { label: 'Trợ giúp', href: '/admin/help', icon: CircleHelp, section: 'Tài khoản' },
 ];
@@ -53,7 +60,11 @@ export const ADMIN_NAV: NavItem[] = [
 /** Trợ giảng: chỉ Lớp học/Buổi học (bật điểm danh) + Khóa học (chấm bài) — không có
  * Người dùng/Học phí/Trợ giúp. */
 export const TEACHING_ASSISTANT_NAV: NavItem[] = ADMIN_NAV.filter(
-  (item) => item.label !== 'Người dùng' && item.label !== 'Học phí' && item.label !== 'Trợ giúp',
+  (item) =>
+    item.label !== 'Người dùng' &&
+    item.label !== 'Học phí' &&
+    item.label !== 'Email tự động' &&
+    item.label !== 'Trợ giúp',
 );
 
 export const DASHBOARD_NAV: NavItem[] = [

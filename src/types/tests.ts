@@ -1,6 +1,17 @@
 /** Suy ra từ thời gian hiện tại ở BE — không lưu DB, FE chỉ đọc. */
 export type TestPhase = 'SCHEDULED' | 'ONGOING' | 'ENDED';
 
+/**
+ * EXAM: bài kiểm tra — chấm điểm, có bước "Bắt đầu" + đồng hồ làm bài.
+ * HOMEWORK: bài tập về nhà — chỉ cần nộp trước hạn, có email báo bài + nhắc hạn nộp.
+ */
+export type TestType = 'EXAM' | 'HOMEWORK';
+
+export const TEST_TYPE_LABEL: Record<TestType, string> = {
+  EXAM: 'Bài kiểm tra',
+  HOMEWORK: 'Bài tập',
+};
+
 /** NOT_SUBMITTED suy ra khi học sinh chưa có bản ghi bài nộp. */
 export type TestSubmissionStatus = 'NOT_SUBMITTED' | 'SUBMITTED' | 'GRADED';
 
@@ -44,8 +55,9 @@ export interface TestRow {
   startTime: string;
   endTime: string;
   maxScore: number;
-  /** Thời gian làm bài (phút), đếm từ lúc học sinh bấm Bắt đầu. */
+  /** Thời gian làm bài (phút), đếm từ lúc học sinh bấm Bắt đầu. Bài tập: bỏ qua. */
   durationMinutes: number;
+  type: TestType;
   phase: TestPhase;
 }
 
@@ -76,6 +88,31 @@ export interface TestDetail extends TestRow {
   description: string | null;
   /** BE trả [] cho học sinh khi phase = SCHEDULED. */
   attachments: TestFile[];
+  /**
+   * Chỉ có trong response của ADMIN / Trợ giảng. Bài tập: email báo bài mới + nhắc hạn nộp.
+   * Bài kiểm tra: email báo điểm sau khi chấm.
+   */
+  emailNotify?: boolean;
+}
+
+/**
+ * Email báo điểm gửi sau lần lưu điểm CUỐI bao nhiêu phút — khớp mặc định
+ * TEST_SCORE_NOTIFY_DELAY_MINUTES phía BE. Chỉ dùng cho câu chữ hướng dẫn; mốc gửi thật
+ * luôn lấy từ BE (`scoreEmail.at`, `scoreEmailAt`).
+ */
+export const SCORE_EMAIL_DELAY_MINUTES = 5;
+
+/**
+ * Email báo điểm của một học sinh (bảng chấm bài).
+ * SCHEDULED: đang chờ tới `at` mới gửi — sửa điểm trước lúc đó thì học sinh chỉ nhận điểm mới.
+ * PENDING / SENT / FAILED: email gần nhất đang gửi / đã gửi / gửi lỗi.
+ */
+export interface ScoreEmailStatus {
+  state: 'SCHEDULED' | 'PENDING' | 'SENT' | 'FAILED';
+  at: string | null;
+  error: string | null;
+  /** SCHEDULED và học sinh đã nhận email báo điểm trước đó → email sắp gửi là "cập nhật". */
+  isUpdate: boolean;
 }
 
 /** Bài nộp của chính học sinh. `score`/`feedback` chỉ có khi ENDED + đã chấm (BE chốt). */
@@ -120,6 +157,8 @@ export interface SubmissionRow {
   leftCourse: boolean;
   /** Lượt mở lại đang cấp; null = không có. Đã nộp bài thì luôn null. */
   reopen: TestReopen | null;
+  /** Email báo điểm gần nhất / đang chờ gửi; null = chưa có. */
+  scoreEmail?: ScoreEmailStatus | null;
 }
 
 export interface ScoreBin {

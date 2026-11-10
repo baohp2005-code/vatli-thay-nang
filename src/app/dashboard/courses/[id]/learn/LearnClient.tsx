@@ -40,6 +40,8 @@ interface Props {
   course: CourseDetail;
   initialNodeId: number | null;
   initialTab: LearnTab;
+  /** Mở thẳng một bài trong tab bài tập / kiểm tra (link từ email). */
+  initialTestId?: number | null;
 }
 
 function countFiles(nodes: CourseNodeTree[]): number {
@@ -49,7 +51,12 @@ function countFiles(nodes: CourseNodeTree[]): number {
   );
 }
 
-export default function LearnClient({ course, initialNodeId, initialTab }: Props) {
+export default function LearnClient({
+  course,
+  initialNodeId,
+  initialTab,
+  initialTestId = null,
+}: Props) {
   const router = useRouter();
   const isEnrolled = course.isEnrolled === true;
   const flat = useMemo(() => flattenTree(course, isEnrolled), [course, isEnrolled]);
@@ -140,7 +147,7 @@ export default function LearnClient({ course, initialNodeId, initialTab }: Props
             tab === 'exams' ? 'bg-background text-primary shadow-sm' : 'text-muted-foreground',
           )}
         >
-          <ClipboardList className="size-4.5" /> Bài kiểm tra
+          <ClipboardList className="size-4.5" /> Bài tập & kiểm tra
         </button>
       </div>
 
@@ -150,7 +157,7 @@ export default function LearnClient({ course, initialNodeId, initialTab }: Props
             {course.title}
           </h1>
           {isEnrolled ? (
-            <StudentTestsPanel courseId={course.id} />
+            <StudentTestsPanel courseId={course.id} initialTestId={initialTestId} />
           ) : (
             <Card>
               <CardContent className="text-muted-foreground flex flex-col items-center gap-2 py-12 text-sm">

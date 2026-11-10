@@ -21,6 +21,14 @@ function statusBadge(s: ClassStatus) {
   return <Badge variant="secondary">Đã đóng</Badge>;
 }
 
+function onOffBadge(on: boolean) {
+  return on ? (
+    <Badge variant="success">Đang bật</Badge>
+  ) : (
+    <Badge variant="secondary">Đang tắt</Badge>
+  );
+}
+
 interface Props {
   classDetail: ClassDetail;
 }
@@ -57,11 +65,17 @@ export default function ClassInfoTab({ classDetail }: Props) {
       ? [
           {
             label: 'Email kết quả điểm danh',
-            value: classDetail.attendanceEmailEnabled ? (
-              <Badge variant="success">Đang bật</Badge>
-            ) : (
-              <Badge variant="secondary">Đang tắt</Badge>
-            ),
+            value: onOffBadge(classDetail.attendanceEmailEnabled),
+            icon: Mail,
+          },
+          {
+            label: 'Email lịch học tuần (8h thứ 2)',
+            value: onOffBadge(classDetail.scheduleEmailEnabled ?? false),
+            icon: Mail,
+          },
+          {
+            label: 'Email tổng kết tháng',
+            value: onOffBadge(classDetail.monthlyReportEmailEnabled ?? false),
             icon: Mail,
           },
         ]

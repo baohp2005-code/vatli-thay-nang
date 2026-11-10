@@ -212,10 +212,28 @@ export default async function AdminHelpPage() {
               <strong>Học phí</strong>).
             </p>
             <p>
-              Tick <strong>&quot;Gửi email kết quả điểm danh cho học sinh&quot;</strong> nếu muốn
-              sau mỗi buổi học, từng học sinh của lớp nhận email báo có mặt / vắng có phép / vắng
-              không phép (mặc định tắt; bật hoặc tắt lại bất cứ lúc nào qua nút <strong>Sửa</strong>
-              ).
+              Ba ô bật email tự động cho học sinh của lớp (mặc định đều tắt; bật hoặc tắt lại bất cứ
+              lúc nào qua nút <strong>Sửa</strong>):
+            </p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li>
+                <strong>&quot;Gửi email kết quả điểm danh&quot;</strong> — sau mỗi buổi học, báo có
+                mặt / vắng có phép (kèm lý do) / vắng không phép.
+              </li>
+              <li>
+                <strong>&quot;Gửi email lịch học trong tuần&quot;</strong> — 8h sáng thứ 2, gửi các
+                buổi học của lớp trong tuần đó (từ 8h thứ 2 tới 23h59 chủ nhật). Lên lịch tuần sau
+                từ chủ nhật là đủ; buổi xa hơn tuần đó không được tính.
+              </li>
+              <li>
+                <strong>&quot;Gửi email tổng kết tháng&quot;</strong> — 20h ngày cuối tháng, mỗi học
+                sinh nhận tổng kết chuyên cần, video đã xem, điểm + xếp hạng bài kiểm tra và các bài
+                đã hết hạn mà chưa nộp.
+              </li>
+            </ul>
+            <p>
+              Theo dõi, gửi ngay hoặc gửi lại các email này ở mục <strong>Email tự động</strong>{' '}
+              trên thanh bên.
             </p>
             <Shot src="lop-hoc/02-tao-lop.png" w={1280} h={900} alt="Form tạo lớp" />
           </Step>
@@ -350,6 +368,13 @@ export default async function AdminHelpPage() {
               quên check-in hoặc điểm danh nhầm. Có thể làm riêng cho 1 học sinh qua menu{' '}
               <strong>&quot;…&quot;</strong> ở cuối dòng.
             </p>
+            <p>
+              Học sinh báo nghỉ với giáo viên (không tự gửi đơn): bấm{' '}
+              <strong>&quot;Nghỉ có phép&quot;</strong> (hoặc menu <strong>&quot;…&quot;</strong> →{' '}
+              <strong>&quot;Đánh dấu nghỉ có phép&quot;</strong>) và nhập lý do. Học sinh được tính
+              vắng có phép, lý do được gửi kèm email kết quả điểm danh. Không cần mở phiên điểm danh
+              trước, và làm được cả sau khi buổi học đã kết thúc.
+            </p>
             <Shot
               src="buoi-hoc/04-bang-tong-hop.png"
               w={1280}
@@ -376,7 +401,11 @@ export default async function AdminHelpPage() {
               Thẻ <strong>&quot;Email kết quả điểm danh&quot;</strong> (khi lớp đã bật gửi email):
               buổi học có mở điểm danh sẽ được hệ thống tự gửi email khoảng 30 phút sau giờ kết thúc
               — khoảng chờ để kịp sửa điểm danh thủ công. Muốn gửi sớm hơn thì bấm{' '}
-              <strong>&quot;Gửi ngay&quot;</strong> sau khi buổi học kết thúc.
+              <strong>&quot;Gửi ngay&quot;</strong> — được ngay trong lúc phiên điểm danh còn mở,
+              không cần chờ hết buổi. Thẻ hiện{' '}
+              <strong>&quot;Đã có kết quả X/Y học sinh&quot;</strong>; nếu còn em chưa điểm danh /
+              chưa ghi nhận nghỉ thì hệ thống hỏi lại, vì các em đó sẽ nhận email &quot;Vắng không
+              phép&quot;.
             </p>
             <p>
               Sau khi gửi, thẻ hiện số email đã gửi / lỗi. Nếu sửa điểm danh của học sinh nào sau
@@ -567,12 +596,19 @@ export default async function AdminHelpPage() {
           </Step>
           <Step n={4}>
             <p>
-              <strong>&quot;Bài kiểm tra&quot;</strong> (cuối tab Nội dung): ra đề bằng ảnh/PDF, đặt
-              khung giờ làm bài — hết giờ hệ thống tự khoá nộp. Bấm{' '}
+              <strong>&quot;Bài tập & bài kiểm tra&quot;</strong> (cuối tab Nội dung): ra đề bằng
+              ảnh/PDF, đặt khung giờ làm bài — hết giờ hệ thống tự khoá nộp. Bấm{' '}
               <strong>&quot;Tạo bài kiểm tra&quot;</strong> rồi nhập Tên, Bắt đầu/Kết thúc, Điểm tối
               đa và tải đề bài lên (tối đa 30 tệp, mỗi tệp 50 MB). Phần &quot;Mô tả / hướng
               dẫn&quot; chỉ hiện với học sinh SAU KHI bài đã bắt đầu, nên có thể viết luôn đề bài
               dạng chữ vào đây nếu không cần ảnh/PDF.
+            </p>
+            <p>
+              <strong>&quot;Tạo bài tập&quot;</strong> dùng cho bài tập về nhà: không chấm điểm,
+              không đồng hồ — học sinh mở là thấy đề và chỉ cần nộp trước hạn. Tick{' '}
+              <strong>&quot;Gửi email cho học sinh&quot;</strong> để hệ thống gửi ngay email báo bài
+              mới (ngày mở + hạn nộp), và 24 giờ trước hạn nộp nhắc những em chưa nộp. Dời hạn nộp
+              thì lời nhắc tự hẹn lại theo hạn mới.
             </p>
             <p>
               Chấm xong bài nào là học sinh đó thấy <strong>điểm và nhận xét ngay</strong>, không
@@ -580,6 +616,15 @@ export default async function AdminHelpPage() {
               sinh không tự nộp lại được — nếu cần cho em đó nộp lại, bấm{' '}
               <strong>&quot;Mở lại&quot;</strong> ở dòng của em trong danh sách bài nộp; nộp lại sẽ
               xoá điểm cũ để chấm lại.
+            </p>
+            <p>
+              Bài kiểm tra có tick <strong>&quot;Gửi email báo điểm cho học sinh&quot;</strong> (mặc
+              định bật khi tạo bài mới): chấm xong, hệ thống tự gửi email báo điểm kèm nhận xét cho
+              từng em <strong>5 phút sau lần lưu điểm cuối cùng</strong> — không cần bấm gửi. Trong
+              5 phút đó cứ sửa điểm thoải mái, học sinh chỉ nhận điểm mới nhất. Sửa điểm sau khi
+              email đã đi thì 5 phút sau em nhận thêm email &quot;Cập nhật điểm&quot; (kèm điểm cũ).
+              Cột Điểm trong danh sách bài nộp hiện giờ gửi / đã gửi / lỗi của từng em; email lỗi
+              gửi lại ở mục <strong>Email tự động</strong>.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <Shot

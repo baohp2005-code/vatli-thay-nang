@@ -4,7 +4,13 @@ export type ClassStudentStatus = 'STUDYING' | 'LEFT';
 export type LeaveType = 'FULL_SESSION' | 'EARLY_LEAVE';
 export type AttendanceSessionStatus = 'ACTIVE' | 'CLOSED';
 export type AttendanceSource = 'STUDENT' | 'MANUAL';
-export type ManualEditAction = 'MARK_ATTENDED' | 'REMOVE_ATTENDANCE' | 'ADD_NOTE';
+/** MARK_EXCUSED: ghi nhận nghỉ có phép thay học sinh — `note` là lý do, gửi kèm email điểm danh. */
+export type ManualEditAction =
+  | 'MARK_ATTENDED'
+  | 'REMOVE_ATTENDANCE'
+  | 'ADD_NOTE'
+  | 'MARK_EXCUSED'
+  | 'REMOVE_EXCUSED';
 
 export const CLASS_STUDENT_STATUS_LABEL: Record<ClassStudentStatus, string> = {
   STUDYING: 'Đang học',
@@ -62,6 +68,10 @@ export interface ClassRow {
   monthlyFee?: number;
   /** Gửi email kết quả điểm danh cho học sinh sau mỗi buổi. Chỉ trả cho ADMIN. */
   attendanceEmailEnabled?: boolean;
+  /** Email lịch học trong tuần, 8h sáng thứ 2. Chỉ trả cho ADMIN. */
+  scheduleEmailEnabled?: boolean;
+  /** Học sinh của lớp nhận email tổng kết tháng (20h ngày cuối tháng). Chỉ trả cho ADMIN. */
+  monthlyReportEmailEnabled?: boolean;
   // STUDENT only.
   attendedCount?: number;
   leaveCount?: number;

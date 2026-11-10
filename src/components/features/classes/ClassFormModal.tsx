@@ -68,6 +68,37 @@ function MoneyField({
   );
 }
 
+function EmailToggle({
+  id,
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  hint: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start gap-3 rounded-md border p-3">
+      <Checkbox
+        id={id}
+        checked={checked}
+        onCheckedChange={(v) => onChange(v === true)}
+        className="mt-0.5"
+      />
+      <div className="space-y-1">
+        <Label htmlFor={id} className="cursor-pointer">
+          {label}
+        </Label>
+        <p className="text-muted-foreground text-xs">{hint}</p>
+      </div>
+    </div>
+  );
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -87,7 +118,14 @@ export default function ClassFormModal({ open, onOpenChange, mode, initialData }
   const [attendanceEmailEnabled, setAttendanceEmailEnabled] = useState(
     initialData?.attendanceEmailEnabled ?? false,
   );
+  const [scheduleEmailEnabled, setScheduleEmailEnabled] = useState(
+    initialData?.scheduleEmailEnabled ?? false,
+  );
+  const [monthlyReportEmailEnabled, setMonthlyReportEmailEnabled] = useState(
+    initialData?.monthlyReportEmailEnabled ?? false,
+  );
   const [submitted, setSubmitted] = useState(false);
+  const emailFlags = { attendanceEmailEnabled, scheduleEmailEnabled, monthlyReportEmailEnabled };
 
   const nameError = submitted && !name.trim() ? 'Vui lòng nhập tên lớp' : '';
   const codeError = submitted && !code.trim() ? 'Vui lòng nhập mã lớp' : '';
@@ -109,7 +147,7 @@ export default function ClassFormModal({ open, onOpenChange, mode, initialData }
           code: code.trim(),
           description: description.trim() || undefined,
           monthlyFee: monthly,
-          attendanceEmailEnabled,
+          ...emailFlags,
         });
         handleActionResult(
           result.errors,
@@ -126,7 +164,7 @@ export default function ClassFormModal({ open, onOpenChange, mode, initialData }
           description: description.trim() || undefined,
           status,
           monthlyFee: monthly,
-          attendanceEmailEnabled,
+          ...emailFlags,
         });
         handleActionResult(
           result.errors,
@@ -144,7 +182,7 @@ export default function ClassFormModal({ open, onOpenChange, mode, initialData }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{mode === 'create' ? 'Tạo lớp học' : 'Chỉnh sửa lớp học'}</DialogTitle>
           <DialogDescription>
@@ -201,22 +239,28 @@ export default function ClassFormModal({ open, onOpenChange, mode, initialData }
             onChange={setMonthlyFee}
             error={monthlyFeeError}
           />
-          <div className="flex items-start gap-3 rounded-md border p-3">
-            <Checkbox
+          <div className="space-y-2">
+            <EmailToggle
               id="class-attendance-email"
+              label="Gửi email kết quả điểm danh cho học sinh"
+              hint="Sau mỗi buổi học có mở điểm danh, mỗi học sinh nhận một email báo có mặt, vắng có phép (kèm lý do) hoặc vắng không phép."
               checked={attendanceEmailEnabled}
-              onCheckedChange={(v) => setAttendanceEmailEnabled(v === true)}
-              className="mt-0.5"
+              onChange={setAttendanceEmailEnabled}
             />
-            <div className="space-y-1">
-              <Label htmlFor="class-attendance-email" className="cursor-pointer">
-                Gửi email kết quả điểm danh cho học sinh
-              </Label>
-              <p className="text-muted-foreground text-xs">
-                Sau mỗi buổi học có mở điểm danh, mỗi học sinh nhận một email báo có mặt, vắng có
-                phép (kèm lý do) hoặc vắng không phép.
-              </p>
-            </div>
+            <EmailToggle
+              id="class-schedule-email"
+              label="Gửi email lịch học trong tuần"
+              hint="8h sáng thứ 2, học sinh nhận danh sách các buổi học của lớp trong tuần đó (từ 8h thứ 2 đến hết chủ nhật)."
+              checked={scheduleEmailEnabled}
+              onChange={setScheduleEmailEnabled}
+            />
+            <EmailToggle
+              id="class-monthly-email"
+              label="Gửi email tổng kết tháng"
+              hint="20h ngày cuối tháng, mỗi học sinh nhận tổng kết chuyên cần, video đã xem, điểm kiểm tra và bài chưa hoàn thành."
+              checked={monthlyReportEmailEnabled}
+              onChange={setMonthlyReportEmailEnabled}
+            />
           </div>
           {mode === 'edit' && (
             <div className="space-y-1.5">

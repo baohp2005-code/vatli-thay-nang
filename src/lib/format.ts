@@ -33,6 +33,15 @@ export function formatDateTimeShort(iso: string | Date): string {
   });
 }
 
+/** "HH:mm" theo giờ VN. */
+export function formatTime(iso: string | Date): string {
+  return new Date(iso).toLocaleTimeString('vi-VN', {
+    timeZone: VN_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export function formatRemaining(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   const m = Math.floor(total / 60);

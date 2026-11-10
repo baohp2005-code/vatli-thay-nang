@@ -28,7 +28,7 @@ import type {
 } from '@/types/actions/attendance';
 import type { ManualEditAction } from '@/types/class-management';
 
-export type ManualDialogMode = 'mark' | 'remove' | 'note';
+export type ManualDialogMode = 'mark' | 'remove' | 'note' | 'excuse' | 'unexcuse';
 
 interface ModeConfig {
   action: ManualEditAction;
@@ -36,6 +36,8 @@ interface ModeConfig {
   description: string;
   success: string;
   requiresSession: boolean;
+  /** Ô ghi chú: nhãn riêng + bắt buộc nhập (lý do nghỉ). Không có = ghi chú tuỳ chọn. */
+  noteField?: { label: string; placeholder: string; required: boolean } | null;
 }
 
 const MODE_CONFIG: Record<ManualDialogMode, ModeConfig> = {
@@ -59,6 +61,28 @@ const MODE_CONFIG: Record<ManualDialogMode, ModeConfig> = {
     description: 'Thêm/cập nhật ghi chú cho lượt điểm danh hiện có.',
     success: 'Đã cập nhật ghi chú',
     requiresSession: true,
+    noteField: { label: 'Ghi chú', placeholder: 'Nhập ghi chú (tối đa 500 ký tự)', required: true },
+  },
+  excuse: {
+    action: 'MARK_EXCUSED',
+    title: 'Đánh dấu nghỉ có phép',
+    description:
+      'Học sinh được tính là vắng có phép. Lý do bên dưới sẽ được gửi kèm email kết quả điểm danh.',
+    success: 'Đã đánh dấu nghỉ có phép',
+    requiresSession: false,
+    noteField: {
+      label: 'Lý do nghỉ',
+      placeholder: 'VD: Ốm, gia đình đã báo giáo viên',
+      required: true,
+    },
+  },
+  unexcuse: {
+    action: 'REMOVE_EXCUSED',
+    title: 'Huỷ nghỉ có phép',
+    description: 'Bỏ ghi nhận nghỉ có phép — học sinh trở về trạng thái chưa điểm danh.',
+    success: 'Đã huỷ nghỉ có phép',
+    requiresSession: false,
+    noteField: null,
   },
 };
 
@@ -134,17 +158,24 @@ function ManualForm({
     mode === 'note' && sortedSessions[0]
       ? (student.attendances.find((a) => a.attendanceSessionId === sortedSessions[0].id)?.note ??
         '')
-      : '';
+      : mode === 'excuse'
+        ? (student.leaveRequest?.reason ?? '')
+        : '';
 
   const [sessionId, setSessionId] = useState<string>(initialSessionId);
   const [note, setNote] = useState<string>(initialNote);
   const [loading, setLoading] = useState(false);
 
   const noSessionAvailable = config.requiresSession && sortedSessions.length === 0;
+  // undefined = ô ghi chú tuỳ chọn mặc định; null = không có ô nào.
+  const noteField =
+    config.noteField === undefined
+      ? { label: 'Ghi chú', placeholder: 'Nhập ghi chú (tối đa 500 ký tự)', required: false }
+      : config.noteField;
+  const noteMissing = !!noteField?.required && !note.trim();
 
   const handleSubmit = async () => {
-    if (noSessionAvailable) return;
-    if (mode === 'note' && !note.trim()) return;
+    if (noSessionAvailable || noteMissing) return;
 
     const payload: IManualAttendancePayload = {
       studentId: student.studentId,
@@ -200,29 +231,28 @@ function ManualForm({
           </div>
         )}
 
-        <div>
-          <Label htmlFor="manual-note">
-            Ghi chú {mode === 'note' && <span className="text-red-500">*</span>}
-          </Label>
-          <Textarea
-            id="manual-note"
-            rows={3}
-            maxLength={500}
-            placeholder="Nhập ghi chú (tối đa 500 ký tự)"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </div>
+        {noteField && (
+          <div>
+            <Label htmlFor="manual-note">
+              {noteField.label} {noteField.required && <span className="text-red-500">*</span>}
+            </Label>
+            <Textarea
+              id="manual-note"
+              rows={3}
+              maxLength={500}
+              placeholder={noteField.placeholder}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
+        )}
       </div>
 
       <DialogFooter>
         <Button variant="outline" onClick={onCancel} disabled={loading}>
           Huỷ
         </Button>
-        <Button
-          onClick={handleSubmit}
-          disabled={loading || noSessionAvailable || (mode === 'note' && !note.trim())}
-        >
+        <Button onClick={handleSubmit} disabled={loading || noSessionAvailable || noteMissing}>
           {loading ? 'Đang lưu...' : 'Xác nhận'}
         </Button>
       </DialogFooter>

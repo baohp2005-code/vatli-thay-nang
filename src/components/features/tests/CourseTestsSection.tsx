@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/table';
 import { handleActionErrors, handleActionResult } from '@/lib/actions';
 import { formatDateTime } from '@/lib/format';
-import type { AdminTestRow, TestPhase } from '@/types/tests';
+import { TEST_TYPE_LABEL, type AdminTestRow, type TestPhase, type TestType } from '@/types/tests';
 import TestFormModal from './TestFormModal';
 
 interface Props {
@@ -66,6 +66,7 @@ export default function CourseTestsSection({ courseId }: Props) {
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | undefined>(undefined);
+  const [createType, setCreateType] = useState<TestType>('HOMEWORK');
   const [deleteTarget, setDeleteTarget] = useState<AdminTestRow | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -102,26 +103,34 @@ export default function CourseTestsSection({ courseId }: Props) {
     }
   }
 
+  function openCreate(type: TestType) {
+    setEditingId(undefined);
+    setCreateType(type);
+    setFormOpen(true);
+  }
+
+  const createButtons = (
+    <div className="flex flex-wrap gap-2">
+      <Button variant="outline" onClick={() => openCreate('HOMEWORK')} className="cursor-pointer">
+        <Plus /> Tạo bài tập
+      </Button>
+      <Button onClick={() => openCreate('EXAM')} className="cursor-pointer">
+        <Plus /> Tạo bài kiểm tra
+      </Button>
+    </div>
+  );
+
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <CardTitle>Bài kiểm tra</CardTitle>
+          <CardTitle>Bài tập & bài kiểm tra</CardTitle>
           <p className="text-muted-foreground mt-1 text-sm">
-            Ra đề bằng ảnh/PDF, đặt lịch làm bài. Hết giờ là khoá nộp.
+            Ra đề bằng ảnh/PDF, đặt lịch làm bài. Hết giờ là khoá nộp. Bài tập chỉ cần nộp, bài kiểm
+            tra có chấm điểm.
           </p>
         </div>
-        {!isTA && (
-          <Button
-            onClick={() => {
-              setEditingId(undefined);
-              setFormOpen(true);
-            }}
-            className="cursor-pointer"
-          >
-            <Plus /> Tạo bài kiểm tra
-          </Button>
-        )}
+        {!isTA && createButtons}
       </CardHeader>
 
       <CardContent className="pb-4 sm:pb-6">
@@ -141,25 +150,13 @@ export default function CourseTestsSection({ courseId }: Props) {
         ) : tests.length === 0 ? (
           <EmptyState
             icon={ClipboardList}
-            title="Chưa có bài kiểm tra"
+            title="Chưa có bài tập hay bài kiểm tra"
             description={
               isTA
-                ? 'Khoá học này hiện chưa có bài kiểm tra nào.'
-                : 'Tạo bài kiểm tra để học sinh làm bài trong khoảng thời gian bạn đặt.'
+                ? 'Khoá học này hiện chưa có bài tập hay bài kiểm tra nào.'
+                : 'Tạo bài tập hoặc bài kiểm tra để học sinh làm bài trong khoảng thời gian bạn đặt.'
             }
-            action={
-              isTA ? undefined : (
-                <Button
-                  onClick={() => {
-                    setEditingId(undefined);
-                    setFormOpen(true);
-                  }}
-                  className="cursor-pointer"
-                >
-                  <Plus /> Tạo bài kiểm tra
-                </Button>
-              )
-            }
+            action={isTA ? undefined : createButtons}
           />
         ) : (
           <Table>
@@ -193,6 +190,12 @@ export default function CourseTestsSection({ courseId }: Props) {
                       >
                         {t.title}
                       </Link>
+                      <Badge
+                        variant={t.type === 'HOMEWORK' ? 'secondary' : 'outline'}
+                        className="ml-2 align-middle"
+                      >
+                        {TEST_TYPE_LABEL[t.type]}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {formatRange(t.startTime, t.endTime)}
@@ -215,7 +218,13 @@ export default function CourseTestsSection({ courseId }: Props) {
                         />
                       </div>
                     </TableCell>
-                    <TableCell className="text-center">{t.maxScore}</TableCell>
+                    <TableCell className="text-center">
+                      {t.type === 'HOMEWORK' ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        t.maxScore
+                      )}
+                    </TableCell>
                     {!isTA && (
                       <TableCell>
                         {/* Nút thao tác không được kích hoạt điều hướng của cả hàng. */}
@@ -256,11 +265,12 @@ export default function CourseTestsSection({ courseId }: Props) {
       </CardContent>
 
       <TestFormModal
-        key={editingId ?? 'new'}
+        key={editingId ?? `new-${createType}`}
         open={formOpen}
         onOpenChange={setFormOpen}
         courseId={courseId}
         testId={editingId}
+        initialType={createType}
         onSaved={load}
       />
 

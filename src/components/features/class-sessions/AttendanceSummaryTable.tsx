@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { CheckCircle2, ClipboardX, MoreHorizontal, X } from 'lucide-react';
+import { CalendarX2, CheckCircle2, ClipboardX, MoreHorizontal, X } from 'lucide-react';
 import DataPagination from '@/components/app/DataPagination';
 import { useIsTeachingAssistant } from '@/components/app/RoleProvider';
 import ColumnFilterHead, {
@@ -57,7 +57,9 @@ import ManualAttendanceDialog, {
 import { manualAttendanceAction } from '@/actions/v1/attendance/manual-attendance';
 import { handleActionResult } from '@/lib/actions';
 import { formatDateTimeShort } from '@/lib/format';
+import { Textarea } from '@/components/ui/textarea';
 import type { AttendanceSummary, AttendanceSummaryStudent } from '@/types/actions/attendance';
+import type { ManualEditAction } from '@/types/class-management';
 
 function formatHm(iso: string): string {
   return new Date(iso).toLocaleTimeString('vi-VN', {
@@ -104,7 +106,32 @@ interface DialogState {
   student: AttendanceSummaryStudent;
 }
 
-type BulkMode = 'mark' | 'remove';
+type BulkMode = 'mark' | 'remove' | 'excuse';
+
+const BULK_MODE_META: Record<
+  BulkMode,
+  { title: string; action: ManualEditAction; success: string; requiresSession: boolean }
+> = {
+  mark: {
+    title: 'Đánh dấu có mặt hàng loạt',
+    action: 'MARK_ATTENDED',
+    success: 'Đã đánh dấu có mặt',
+    requiresSession: true,
+  },
+  remove: {
+    title: 'Huỷ điểm danh hàng loạt',
+    action: 'REMOVE_ATTENDANCE',
+    success: 'Đã huỷ điểm danh',
+    requiresSession: true,
+  },
+  // Nghỉ có phép không cần phiên điểm danh — học sinh báo nghỉ trước buổi vẫn ghi được.
+  excuse: {
+    title: 'Đánh dấu nghỉ có phép',
+    action: 'MARK_EXCUSED',
+    success: 'Đã đánh dấu nghỉ có phép cho',
+    requiresSession: false,
+  },
+};
 
 interface BulkDialogState {
   mode: BulkMode;
@@ -269,6 +296,15 @@ export default function AttendanceSummaryTable({ classSessionId, summary, onChan
               <ClipboardX className="size-4" />
               Huỷ điểm danh
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={selectedStudents.length === 0}
+              onClick={() => setBulkDialog({ mode: 'excuse', students: selectedStudents })}
+            >
+              <CalendarX2 className="size-4" />
+              Nghỉ có phép
+            </Button>
             {selectedStudents.length > 0 && (
               <Button size="sm" variant="ghost" onClick={clearSelection}>
                 Bỏ chọn
@@ -412,6 +448,22 @@ export default function AttendanceSummaryTable({ classSessionId, summary, onChan
                             >
                               Thêm ghi chú
                             </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              onClick={() => setDialog({ mode: 'excuse', student: row })}
+                            >
+                              {row.leaveRequest
+                                ? 'Sửa lý do nghỉ có phép'
+                                : 'Đánh dấu nghỉ có phép'}
+                            </DropdownMenuItem>
+                            {row.leaveRequest && (
+                              <DropdownMenuItem
+                                className="cursor-pointer"
+                                onClick={() => setDialog({ mode: 'unexcuse', student: row })}
+                              >
+                                Huỷ nghỉ có phép
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -551,15 +603,15 @@ function BulkAttendanceDialog({
   const [sessionId, setSessionId] = useState<string>(
     sortedSessions[0] ? String(sortedSessions[0].id) : '',
   );
+  const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const title = mode === 'mark' ? 'Đánh dấu có mặt hàng loạt' : 'Huỷ điểm danh hàng loạt';
-  const action = mode === 'mark' ? 'MARK_ATTENDED' : 'REMOVE_ATTENDANCE';
-  const successMsg = mode === 'mark' ? 'Đã đánh dấu có mặt' : 'Đã huỷ điểm danh';
-  const noSession = sortedSessions.length === 0;
+  const { title, action, success: successMsg, requiresSession } = BULK_MODE_META[mode];
+  const noSession = requiresSession && sortedSessions.length === 0;
+  const reasonMissing = mode === 'excuse' && !reason.trim();
 
   const handleSubmit = async () => {
-    if (noSession || !sessionId) return;
+    if (noSession || reasonMissing || (requiresSession && !sessionId)) return;
     setLoading(true);
     try {
       const results = await Promise.all(
@@ -567,7 +619,8 @@ function BulkAttendanceDialog({
           manualAttendanceAction(classSessionId, {
             studentId: s.studentId,
             action,
-            attendanceSessionId: Number(sessionId),
+            ...(requiresSession ? { attendanceSessionId: Number(sessionId) } : {}),
+            ...(mode === 'excuse' ? { note: reason.trim() } : {}),
           }),
         ),
       );
@@ -597,34 +650,55 @@ function BulkAttendanceDialog({
             </div>
           </div>
 
-          <div>
-            <Label>Phiên điểm danh</Label>
-            {noSession ? (
-              <p className="text-sm text-red-500">
-                Chưa có phiên điểm danh nào. Vui lòng bật điểm danh trước.
+          {requiresSession && (
+            <div>
+              <Label>Phiên điểm danh</Label>
+              {noSession ? (
+                <p className="text-sm text-red-500">
+                  Chưa có phiên điểm danh nào. Vui lòng bật điểm danh trước.
+                </p>
+              ) : (
+                <Select value={sessionId} onValueChange={setSessionId}>
+                  <SelectTrigger className="cursor-pointer">
+                    <SelectValue placeholder="Chọn phiên" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sortedSessions.map((s, idx) => (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        Phiên #{sortedSessions.length - idx} — {formatDateTimeShort(s.openedAt)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
+          {mode === 'excuse' && (
+            <div>
+              <Label htmlFor="bulk-excuse-reason">
+                Lý do nghỉ <span className="text-red-500">*</span>
+              </Label>
+              <Textarea
+                id="bulk-excuse-reason"
+                rows={3}
+                maxLength={500}
+                placeholder="VD: Tham gia hoạt động của trường"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
+              <p className="text-muted-foreground mt-1 text-xs">
+                Áp dụng cho tất cả học sinh đã chọn và được gửi kèm email kết quả điểm danh.
               </p>
-            ) : (
-              <Select value={sessionId} onValueChange={setSessionId}>
-                <SelectTrigger className="cursor-pointer">
-                  <SelectValue placeholder="Chọn phiên" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sortedSessions.map((s, idx) => (
-                    <SelectItem key={s.id} value={String(s.id)}>
-                      Phiên #{sortedSessions.length - idx} — {formatDateTimeShort(s.openedAt)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Huỷ
           </Button>
-          <Button onClick={handleSubmit} disabled={loading || noSession}>
+          <Button onClick={handleSubmit} disabled={loading || noSession || reasonMissing}>
             {loading ? 'Đang lưu...' : 'Xác nhận'}
           </Button>
         </DialogFooter>
