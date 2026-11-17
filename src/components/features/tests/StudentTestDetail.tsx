@@ -36,7 +36,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { handleActionErrors, handleActionSuccess } from '@/lib/actions';
-import { formatDateTimeShort } from '@/lib/format';
+import { formatDateTimeShort, formatLateDuration } from '@/lib/format';
 import type {
   MySubmission,
   ParticipantsResult,
@@ -44,6 +44,7 @@ import type {
   TestFilePayload,
 } from '@/types/tests';
 import ClassRankCard from './ClassRankCard';
+import ReviewSuggestionsCard from './ReviewSuggestionsCard';
 import ScoreDistributionChart from './ScoreDistributionChart';
 import TestAttachmentViewer from './TestAttachmentViewer';
 import TestFileUploader from './TestFileUploader';
@@ -183,9 +184,18 @@ export default function StudentTestDetail({ courseId, testId, onBack }: Props) {
   // Đang trong hạn nộp bù admin cấp — bỏ qua cả phase lẫn màn "Bắt đầu làm bài".
   const remainingMs = deadlineMs === null ? null : Math.max(0, deadlineMs - nowMs - clockOffsetMs);
   const reopened = test.myReopen !== null && remainingMs !== null && remainingMs > 0;
-  const submittable = (ongoing || reopened) && !scheduled;
+  // Bài tập quá hạn KHÔNG khoá: vẫn nộp được, bài ghi nhận nộp muộn. Đồng hồ bài tập về 0
+  // ngay trước mắt (trang mở từ trước hạn) cũng chuyển thẳng sang chế độ này — không khoá
+  // form, không tự nộp. Bài kiểm tra giữ nguyên luật cũ (hết giờ là khoá + tự nộp).
+  const lateMode = isHomework && !reopened && (ended || remainingMs === 0);
+  // Ai còn nộp được trong chế độ nộp muộn — BE chốt (myCanSubmitLate): chưa nộp, hoặc bài đã
+  // nộp muộn chưa chấm. Vừa quá hạn trước mắt thì bài đang có (nếu có) chắc chắn là đúng hạn.
+  const lateAllowed = ended ? test.myCanSubmitLate : test.mySubmission === null;
+  const submittable = (ongoing || reopened || lateMode) && !scheduled;
   const notStarted = ongoing && !test.myAttempt && !reopened;
-  const expired = submittable && remainingMs === 0;
+  // Bài tập vừa quá hạn mà em đã có bài đúng hạn: khoá + tự nộp phần đang sửa dở như cũ
+  // (request tới trong 30s ân hạn vẫn tính đúng hạn) — sau hạn không ghi đè được nữa.
+  const expired = submittable && remainingMs === 0 && !(lateMode && lateAllowed);
   // Đã chấm thì không tự nộp lại được (BE chặn) — trừ khi giáo viên mở lại cho em đó.
   const gradedLocked = test.mySubmissionStatus === 'GRADED' && !reopened;
 
@@ -221,7 +231,7 @@ export default function StudentTestDetail({ courseId, testId, onBack }: Props) {
             ·
           </span>
           {isHomework ? (
-            <span>Bài tập — chỉ cần nộp trước hạn</span>
+            <span>Bài tập — nộp trước hạn; quá hạn vẫn nộp được (ghi nhận nộp muộn)</span>
           ) : (
             <>
               <span>Thang điểm {test.maxScore}</span>
@@ -232,7 +242,13 @@ export default function StudentTestDetail({ courseId, testId, onBack }: Props) {
             </>
           )}
           <Badge variant={ongoing ? 'default' : ended ? 'secondary' : 'outline'}>
-            {scheduled ? 'Sắp diễn ra' : ongoing ? 'Đang mở' : 'Đã kết thúc'}
+            {scheduled
+              ? 'Sắp diễn ra'
+              : ongoing
+                ? 'Đang mở'
+                : isHomework
+                  ? 'Đã quá hạn'
+                  : 'Đã kết thúc'}
           </Badge>
         </div>
       </div>
@@ -294,8 +310,13 @@ export default function StudentTestDetail({ courseId, testId, onBack }: Props) {
             </div>
           )}
 
+          {/* Bài tập quá hạn: nói rõ vẫn nộp được + bị ghi nhận nộp muộn, hoặc đã nộp muộn bao lâu. */}
+          {lateMode && (lateAllowed || test.mySubmission?.isLate) && (
+            <LateBanner endTime={test.endTime} mySubmission={test.mySubmission} />
+          )}
+
           {/* Đếm ngược — chỉ khi đã bắt đầu lượt làm và còn nộp được (chưa khoá vì đã chấm). */}
-          {submittable && !gradedLocked && remainingMs !== null && (
+          {submittable && !lateMode && !gradedLocked && remainingMs !== null && (
             <div
               role="timer"
               aria-live="off"
@@ -368,7 +389,8 @@ export default function StudentTestDetail({ courseId, testId, onBack }: Props) {
                 key={test.mySubmission?.updatedAt ?? 'chua-nop'}
                 courseId={courseId}
                 testId={testId}
-                ongoing={submittable}
+                ongoing={submittable && (!lateMode || lateAllowed)}
+                lateMode={lateMode}
                 deadlineAt={test.myAttempt?.deadlineAt ?? test.endTime}
                 expired={expired}
                 gradedLocked={gradedLocked}
@@ -423,10 +445,20 @@ export default function StudentTestDetail({ courseId, testId, onBack }: Props) {
                     </Card>
                   )}
 
+                  <ReviewSuggestionsCard
+                    courseId={test.courseId}
+                    suggestions={test.mySubmission?.reviewSuggestions}
+                  />
+
                   {test.mySubmission && (
                     <Card>
                       <CardContent className="space-y-3 py-4 sm:py-6">
-                        <p className="text-sm font-medium">Bài làm của bạn</p>
+                        <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                          Bài làm của bạn
+                          {test.mySubmission.isLate && (
+                            <Badge variant="warning">{lateText(test.mySubmission)}</Badge>
+                          )}
+                        </p>
                         {test.mySubmission.note && (
                           <div className="bg-muted rounded-md p-3 text-sm whitespace-pre-wrap">
                             {test.mySubmission.note}
@@ -497,6 +529,39 @@ function formatRemaining(ms: number): string {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
+/** "Nộp muộn · trễ 2 ngày" (BE trả sẵn lateSeconds, tính theo submittedAt so với hạn). */
+function lateText(sub: MySubmission): string {
+  return sub.lateSeconds === null
+    ? 'Nộp muộn'
+    : `Nộp muộn · trễ ${formatLateDuration(sub.lateSeconds * 1000)}`;
+}
+
+/** Bài tập đã quá hạn: vẫn nộp được (ghi nhận nộp muộn), hoặc đã nộp muộn bao lâu. */
+function LateBanner({
+  endTime,
+  mySubmission,
+}: {
+  endTime: string;
+  mySubmission: MySubmission | null;
+}) {
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      <CalendarClock className="mt-0.5 size-4 shrink-0" />
+      {mySubmission?.isLate ? (
+        <p>
+          <span className="font-medium">{lateText(mySubmission)}</span> — hạn nộp là{' '}
+          {formatDateTimeShort(endTime)}.
+        </p>
+      ) : (
+        <p>
+          <span className="font-medium">Đã quá hạn ({formatDateTimeShort(endTime)})</span> — bạn vẫn
+          nộp được, bài sẽ được ghi nhận nộp muộn.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function BackButton({ onBack, disabled }: { onBack: () => void; disabled?: boolean }) {
   return (
     <Button
@@ -517,6 +582,7 @@ function SubmitTab({
   courseId,
   testId,
   ongoing,
+  lateMode,
   deadlineAt,
   expired,
   gradedLocked,
@@ -528,6 +594,8 @@ function SubmitTab({
   courseId: number;
   testId: number;
   ongoing: boolean;
+  /** Bài tập đã quá hạn — nộp bây giờ là nộp muộn (BE ghi nhận theo giờ máy chủ). */
+  lateMode: boolean;
   /** Hạn nộp cá nhân (startedAt + thời gian làm bài, chặn bởi endTime). */
   deadlineAt: string;
   /** Đồng hồ cá nhân đã về 0 — khoá form + tự nộp phần đang dở. */
@@ -604,9 +672,11 @@ function SubmitTab({
           <p>
             {expired
               ? 'Đã hết thời gian làm bài.'
-              : timeLocked
-                ? 'Đã hết thời gian nộp bài.'
-                : 'Bài của bạn đã được chấm nên không nộp lại được nữa.'}
+              : timeLocked && lateMode && status === 'SUBMITTED' && !mySubmission?.isLate
+                ? 'Bạn đã nộp đúng hạn. Hạn nộp đã qua nên không sửa bài được nữa.'
+                : timeLocked
+                  ? 'Đã hết thời gian nộp bài.'
+                  : 'Bài của bạn đã được chấm nên không nộp lại được nữa.'}
           </p>
           {saving ? (
             <p className="text-foreground">Đang tự động nộp bài của bạn…</p>
@@ -642,7 +712,13 @@ function SubmitTab({
         return;
       }
 
-      handleActionSuccess(auto ? 'Hết giờ — bài đã được tự động nộp' : 'Nộp bài thành công');
+      handleActionSuccess(
+        auto
+          ? 'Hết giờ — bài đã được tự động nộp'
+          : lateMode
+            ? 'Nộp bài thành công — bài được ghi nhận nộp muộn'
+            : 'Nộp bài thành công',
+      );
       if (auto) setAutoSubmitted(true);
       // Không xoá form ở đây: cha tải lại rồi remount tab này với bài vừa nộp, để học
       // sinh thấy đúng thứ mình đang giữ và sửa tiếp được.
@@ -662,6 +738,20 @@ function SubmitTab({
             Bài đã được chấm. Nộp lại sẽ <strong>thay bài cũ và xoá điểm hiện tại</strong> — giáo
             viên sẽ chấm lại.
           </p>
+        ) : lateMode ? (
+          // Quá hạn: tới được đây là chưa nộp, hoặc bài đã nộp muộn chưa chấm (BE chốt).
+          mySubmission ? (
+            <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+              Đã nộp lúc <strong>{formatDateTimeShort(mySubmission.updatedAt)}</strong> ·{' '}
+              {lateText(mySubmission)}. Có thể nộp lại (thay bài cũ) cho tới khi giáo viên chấm bài
+              — bài vẫn tính nộp muộn.
+            </p>
+          ) : (
+            <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+              Đã quá hạn nộp ({formatDateTimeShort(deadlineAt)}) — bạn vẫn nộp được, bài sẽ được{' '}
+              <strong>ghi nhận nộp muộn</strong>.
+            </p>
+          )
         ) : (
           mySubmission && (
             <p className="bg-muted rounded-md p-3 text-sm">
@@ -705,7 +795,9 @@ function SubmitTab({
             : saving
               ? 'Đang nộp…'
               : status === 'NOT_SUBMITTED'
-                ? 'Nộp bài'
+                ? lateMode
+                  ? 'Nộp muộn'
+                  : 'Nộp bài'
                 : 'Cập nhật bài nộp'}
         </Button>
       </CardContent>

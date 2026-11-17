@@ -33,7 +33,15 @@ function formatRange(start: string, end: string): string {
 function myStatusText(t: StudentTestRow, maxScore: number): string {
   if (t.myScore !== null) return `${t.myScore}/${maxScore} điểm`;
   if (t.mySubmissionStatus === 'NOT_SUBMITTED') return 'Chưa nộp';
-  return 'Đã nộp';
+  return t.myIsLate ? 'Đã nộp muộn' : 'Đã nộp';
+}
+
+/**
+ * Bài tập quá hạn mà CHƯA nộp: vẫn nộp được (ghi nhận nộp muộn) — đây là việc cần làm,
+ * nên không hiện "Đã kết thúc" xám như bài đã xong.
+ */
+function owesLate(t: StudentTestRow): boolean {
+  return t.lateSubmission && t.mySubmissionStatus === 'NOT_SUBMITTED';
 }
 
 /** Chỉ báo hạn nộp khi còn dưới 24 giờ — sớm hơn thì hiện ra chỉ gây nhiễu, không giúp
@@ -167,7 +175,11 @@ export default function StudentTestsPanel({ courseId, openTestId, onOpenTestChan
                 'hover:border-purple focus-visible:ring-ring/50 cursor-pointer border-l-4 transition outline-none focus-visible:ring-[3px]',
                 // Bài đang mở là việc cần làm ngay — viền trái nổi bật để mắt rơi đúng chỗ
                 // giữa một danh sách nhiều bài đã kết thúc/sắp diễn ra.
-                t.phase === 'ONGOING' ? 'border-l-purple' : 'border-l-transparent',
+                t.phase === 'ONGOING'
+                  ? 'border-l-purple'
+                  : owesLate(t)
+                    ? 'border-l-amber-400'
+                    : 'border-l-transparent',
               )}
             >
               <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
@@ -198,7 +210,11 @@ export default function StudentTestsPanel({ courseId, openTestId, onOpenTestChan
                     )}
                     {myStatusText(t, t.maxScore)}
                   </span>
-                  <Badge variant={phase.variant}>{phase.text}</Badge>
+                  {owesLate(t) ? (
+                    <Badge variant="warning">Quá hạn · vẫn nộp được</Badge>
+                  ) : (
+                    <Badge variant={phase.variant}>{phase.text}</Badge>
+                  )}
                 </div>
               </CardContent>
             </Card>

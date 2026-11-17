@@ -11,7 +11,8 @@ import type { IActionState } from '@/types/actions/users';
  * Nộp / cập nhật bài làm (ghi đè bài cũ).
  *
  * BE chốt cutoff cứng theo giờ máy chủ: ngoài [startTime, endTime] là 403, dù FE có
- * ẩn nút hay không. Nộp lại khi bài đã được chấm sẽ HUỶ điểm cũ (về trạng thái chờ
+ * ẩn nút hay không — trừ bài tập (HOMEWORK): quá hạn vẫn nhận, ghi nhận nộp muộn (bài đã
+ * nộp đúng hạn thì không ghi đè được sau hạn). Nộp lại khi bài đã được chấm sẽ HUỶ điểm cũ (về trạng thái chờ
  * chấm) — điểm cũ chấm cho bài cũ.
  *
  * files KHÔNG chứa fileUrl: BE tự dựng từ fileStorageKey.

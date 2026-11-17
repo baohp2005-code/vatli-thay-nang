@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import ClassSessionInfoSection from '@/components/features/class-sessions/ClassSessionInfoSection';
 import StudentAttendancePanel from '@/components/features/class-sessions/StudentAttendancePanel';
+import StudentRecordingCard from '@/components/features/class-sessions/StudentRecordingCard';
 import { CLASS_SESSION_STATUS_MAP, getEffectiveStatus } from '@/lib/class-sessions';
 import { useResolved } from '@/lib/actions';
 import type { GetMyAttendanceResponse } from '@/actions/v1/attendance/get-my-attendance';
@@ -94,6 +95,8 @@ export default function StudentClassSessionDetailClient({
           myLeaveRequestPromise={myLeaveRequestPromise}
         />
       </Suspense>
+
+      {classSession.recording && <StudentRecordingCard recording={classSession.recording} />}
 
       <ClassSessionInfoSection classSession={classSession} />
     </div>

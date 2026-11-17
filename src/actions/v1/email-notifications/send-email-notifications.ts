@@ -47,6 +47,15 @@ export async function sendMonthlyReportAction(): Promise<EmailActionResult> {
   );
 }
 
+/** Gửi ngay email "Bài tập còn nợ" — lượt riêng, không ảnh hưởng lượt 20h Chủ nhật. */
+export async function sendHomeworkDigestAction(): Promise<EmailActionResult> {
+  return post(
+    '/api/v1/email-notifications/homework-digest/send',
+    {},
+    'Gửi email bài tập còn nợ thất bại',
+  );
+}
+
 export async function retryEmailBatchAction(batchId: number): Promise<EmailActionResult> {
   return post(`/api/v1/email-notifications/batches/${batchId}/retry`, {}, 'Gửi lại email thất bại');
 }

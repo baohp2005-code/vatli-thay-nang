@@ -4,6 +4,7 @@ import { listAttendanceSessions } from '@/actions/v1/attendance/list-attendance-
 import { getAttendanceSummary } from '@/actions/v1/attendance/get-attendance-summary';
 import { listLeaveRequests } from '@/actions/v1/leave-requests/list-leave-requests';
 import { getAttendanceEmailStatus } from '@/actions/v1/attendance-notifications/get-attendance-email-status';
+import { getSessionRecording } from '@/actions/v1/session-recordings/get-session-recording';
 import { getCurrentSession } from '@/lib/server/session';
 import ClassSessionDetailPageClient from './ClassSessionDetailPageClient';
 
@@ -36,6 +37,8 @@ export default async function ClassSessionDetailPage({ params, searchParams }: P
   const session = await getCurrentSession();
   const emailStatusPromise =
     session?.role === 'ADMIN' ? getAttendanceEmailStatus(classSessionId) : null;
+  // Record + email nhắc xem lại cũng là việc của ADMIN (BE chặn Trợ giảng).
+  const recordingPromise = session?.role === 'ADMIN' ? getSessionRecording(classSessionId) : null;
 
   const classSession = await getClassSession(classSessionId);
   if (!classSession) notFound();
@@ -49,6 +52,7 @@ export default async function ClassSessionDetailPage({ params, searchParams }: P
       summaryPromise={summaryPromise}
       leaveRequestsPromise={leaveRequestsPromise}
       emailStatusPromise={emailStatusPromise}
+      recordingPromise={recordingPromise}
     />
   );
 }

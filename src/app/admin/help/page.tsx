@@ -230,6 +230,13 @@ export default async function AdminHelpPage() {
                 sinh nhận tổng kết chuyên cần, video đã xem, điểm + xếp hạng bài kiểm tra và các bài
                 đã hết hạn mà chưa nộp.
               </li>
+              <li>
+                <strong>&quot;Bài tập còn nợ&quot;</strong> — 20h Chủ nhật hằng tuần, mỗi học sinh
+                còn bài tập chưa nộp nhận một email riêng liệt kê mọi bài (đã quá hạn / sắp đến hạn)
+                ở các khóa đang học, kèm link vào thẳng bài. Cộng dồn: bài chưa nộp còn nằm trong
+                email các tuần sau cho tới khi em nộp. Chỉ tính bài có tích &quot;Gửi email cho học
+                sinh&quot;; em không nợ bài nào thì không nhận.
+              </li>
             </ul>
             <p>
               Theo dõi, gửi ngay hoặc gửi lại các email này ở mục <strong>Email tự động</strong>{' '}
@@ -605,10 +612,13 @@ export default async function AdminHelpPage() {
             </p>
             <p>
               <strong>&quot;Tạo bài tập&quot;</strong> dùng cho bài tập về nhà: không chấm điểm,
-              không đồng hồ — học sinh mở là thấy đề và chỉ cần nộp trước hạn. Tick{' '}
+              không đồng hồ — học sinh mở là thấy đề và nộp trước hạn. Quá hạn học sinh{' '}
+              <strong>vẫn nộp được</strong>, bài hiện nhãn &quot;Nộp muộn · trễ N ngày&quot; trong
+              danh sách bài nộp (bài đã nộp đúng hạn thì không sửa được sau hạn). Tick{' '}
               <strong>&quot;Gửi email cho học sinh&quot;</strong> để hệ thống gửi ngay email báo bài
-              mới (ngày mở + hạn nộp), và 24 giờ trước hạn nộp nhắc những em chưa nộp. Dời hạn nộp
-              thì lời nhắc tự hẹn lại theo hạn mới.
+              mới (ngày mở + hạn nộp), 24 giờ trước hạn nộp nhắc những em chưa nộp, và đưa bài vào
+              email <strong>&quot;Bài tập còn nợ&quot;</strong> 20h Chủ nhật hằng tuần cho tới khi
+              em đó nộp. Dời hạn nộp thì lời nhắc tự hẹn lại theo hạn mới.
             </p>
             <p>
               Chấm xong bài nào là học sinh đó thấy <strong>điểm và nhận xét ngay</strong>, không

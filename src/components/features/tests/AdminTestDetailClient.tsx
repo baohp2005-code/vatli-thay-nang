@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
+  Bot,
   CalendarClock,
   ChevronLeft,
   ChevronRight,
@@ -51,6 +52,7 @@ import { handleActionErrors, handleActionResult, handleActionSuccess } from '@/l
 import {
   formatDateTime as formatDateTimeFull,
   formatDateTimeShort,
+  formatLateDuration,
   formatTime,
 } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -63,6 +65,22 @@ import {
   type TestFile,
   type TestPhase,
 } from '@/types/tests';
+import { requestAiGradingAction } from '@/actions/v1/ai-grading/request-ai-grading';
+import AiBulkControl from '@/components/features/ai-grading/AiBulkControl';
+import AiDraftPanel from '@/components/features/ai-grading/AiDraftPanel';
+import AiStatusBadge, { AiRowButton } from '@/components/features/ai-grading/AiStatusBadge';
+import ReviewSuggestionsEditor from '@/components/features/ai-grading/ReviewSuggestionsEditor';
+import { useAiDraft } from '@/components/features/ai-grading/useAiDraft';
+import {
+  useAiGradingStatuses,
+  type AiGradingStatuses,
+} from '@/components/features/ai-grading/useAiGradingStatuses';
+import {
+  reviewFromApproved,
+  reviewFromDraft,
+  reviewToPayload,
+} from '@/components/features/ai-grading/review-draft';
+import type { AiGradingStatusRow, ReviewDraft } from '@/types/ai-grading';
 import ScoreDistributionChart from './ScoreDistributionChart';
 import TestAttachmentViewer, { GRADING_MODAL_SIZE } from './TestAttachmentViewer';
 import TestFormModal from './TestFormModal';
@@ -352,6 +370,30 @@ export default function AdminTestDetailClient({ courseId, test, submissionsPromi
     [courseId, test.id, refresh],
   );
 
+  // AI chấm bài (chỉ bài kiểm tra): trạng thái từng bài, tự polling khi còn bài đang chạy.
+  const isExam = test.type === 'EXAM';
+  const ai = useAiGradingStatuses(test.id, isExam);
+  const [aiRequestingId, setAiRequestingId] = useState<number | null>(null);
+  const hasAnswerKey = !!test.answerKeyText?.trim() || (test.answerFiles?.length ?? 0) > 0;
+  const refreshAi = ai.refresh;
+
+  const requestAi = useCallback(
+    async (studentId: number) => {
+      setAiRequestingId(studentId);
+      try {
+        const res = await requestAiGradingAction(test.id, studentId);
+        if (res.errors.length) return handleActionErrors(res.errors);
+        handleActionSuccess(
+          res.queued ? 'Đã đưa bài vào hàng chờ AI chấm' : 'Bài này đang được AI chấm',
+        );
+        await refreshAi();
+      } finally {
+        setAiRequestingId(null);
+      }
+    },
+    [test.id, refreshAi],
+  );
+
   // Bài đã nộp nhưng chưa chấm — dùng để tô điểm thẻ số + gợi ý "chấm tiếp" và làm nổi
   // bật hàng cần xử lý trong bảng, thay vì bắt admin tự dò cột trạng thái.
   const pendingGradeCount = Math.max(stats.submittedCount - stats.gradedCount, 0);
@@ -421,6 +463,15 @@ export default function AdminTestDetailClient({ courseId, test, submissionsPromi
               </Button>
             )}
           </div>
+          {isExam && (
+            <AiBulkControl
+              testId={test.id}
+              statuses={ai}
+              pendingGradeCount={pendingGradeCount}
+              submittedCount={stats.submittedCount}
+              hasAnswerKey={hasAnswerKey}
+            />
+          )}
           <TableSearchInput
             value={search}
             onChange={setSearch}
@@ -503,6 +554,9 @@ export default function AdminTestDetailClient({ courseId, test, submissionsPromi
                         r.updatedAt !== r.submittedAt && (
                           <span className="ml-1 text-xs">(đã sửa)</span>
                         )}
+                      {r.isLate && (
+                        <LateBadge lateSeconds={r.lateSeconds} className="mt-1 flex w-fit" />
+                      )}
                     </TableCell>
                     <TableCell className="text-center">
                       {r.score === null ? (
@@ -514,6 +568,13 @@ export default function AdminTestDetailClient({ courseId, test, submissionsPromi
                       )}
                       {r.scoreEmail && (
                         <ScoreEmailLine status={r.scoreEmail} className="mt-1 justify-center" />
+                      )}
+                      {isExam && (
+                        <AiStatusBadge
+                          row={ai.byStudent.get(r.studentId)}
+                          maxScore={test.maxScore}
+                          className="mt-1"
+                        />
                       )}
                     </TableCell>
                     <TableCell className="text-right">
@@ -541,6 +602,14 @@ export default function AdminTestDetailClient({ courseId, test, submissionsPromi
                               </Button>
                             )}
                           </>
+                        )}
+                        {isExam && r.status !== 'NOT_SUBMITTED' && (
+                          <AiRowButton
+                            row={ai.byStudent.get(r.studentId)}
+                            mode={ai.mode}
+                            requesting={aiRequestingId === r.studentId}
+                            onClick={() => void requestAi(r.studentId)}
+                          />
                         )}
                         {/* Mở lại + Chấm bài cùng nằm ở cột Hành động, xếp dọc cho gọn. */}
                         {r.status !== 'NOT_SUBMITTED' && (
@@ -580,6 +649,9 @@ export default function AdminTestDetailClient({ courseId, test, submissionsPromi
           isExam={test.type === 'EXAM'}
           scoreEmailEnabled={scoreEmailEnabled}
           row={currentRow}
+          ai={ai}
+          aiRequesting={aiRequestingId === currentRow.studentId}
+          onRequestAi={() => void requestAi(currentRow.studentId)}
           index={queue.pos}
           total={queue.ids.length}
           gradedCount={stats.gradedCount}
@@ -612,6 +684,16 @@ const STAT_ACCENT: Record<'purple' | 'amber' | 'green' | 'neutral', string> = {
   green: 'bg-green-100 text-green-700',
   neutral: 'bg-muted text-muted-foreground',
 };
+
+/** Bài tập nộp sau hạn: "Nộp muộn · trễ 2 ngày" (BE suy ra từ submittedAt so với endTime). */
+function LateBadge({ lateSeconds, className }: { lateSeconds: number | null; className?: string }) {
+  return (
+    <Badge variant="destructive" className={className}>
+      Nộp muộn
+      {lateSeconds !== null && ` · trễ ${formatLateDuration(lateSeconds * 1000)}`}
+    </Badge>
+  );
+}
 
 function StatCard({
   title,
@@ -693,6 +775,9 @@ function GradingDialog({
   isExam,
   scoreEmailEnabled,
   row,
+  ai,
+  aiRequesting,
+  onRequestAi,
   index,
   total,
   gradedCount,
@@ -708,6 +793,10 @@ function GradingDialog({
   /** Bài kiểm tra bật email báo điểm. */
   scoreEmailEnabled: boolean;
   row: SubmissionRow;
+  /** Trạng thái AI chấm của cả bài (polling ở component cha). */
+  ai: AiGradingStatuses;
+  aiRequesting: boolean;
+  onRequestAi: () => void;
   index: number;
   total: number;
   gradedCount: number;
@@ -719,6 +808,22 @@ function GradingDialog({
   const [score, setScore] = useState(row.score === null ? '' : String(row.score));
   const [feedback, setFeedback] = useState(row.feedback ?? '');
   const [saving, setSaving] = useState(false);
+
+  // AI chấm bài (chỉ bài kiểm tra). `aiRow` sống theo polling; bản nháp đầy đủ + gợi ý ôn tập
+  // đã duyệt tải riêng và tải lại khi dòng AI đổi (vừa chấm xong / chấm lại).
+  const aiRow: AiGradingStatusRow | undefined = ai.byStudent.get(row.studentId);
+  const aiDraft = useAiDraft(
+    testId,
+    row.studentId,
+    isExam,
+    aiRow ? `${aiRow.status}:${aiRow.updatedAt}` : null,
+  );
+  // null = giáo viên chưa đụng tới phần gợi ý → hiển thị cái đã duyệt và KHÔNG gửi trường này
+  // (BE giữ nguyên). Khác null = bản đang sửa, gửi lên khi lưu.
+  const [reviewEdit, setReviewEdit] = useState<ReviewDraft | null>(null);
+  const review = reviewEdit ?? reviewFromApproved(aiDraft.detail?.approved ?? null);
+  // Điểm / nhận xét / gợi ý trong form đến từ "Dùng đề xuất" và chưa được lưu.
+  const [appliedFromAi, setAppliedFromAi] = useState(false);
   // setSaving chỉ có hiệu lực ở lần render sau, nên hai cú click liên tiếp cùng lọt qua
   // `saving === false`. Ref khoá ngay trong lần click đầu.
   const savingRef = useRef(false);
@@ -740,6 +845,8 @@ function GradingDialog({
       const res = await gradeSubmissionAction(courseId, testId, row.studentId, {
         score: value,
         feedback: feedback.trim() || undefined,
+        // Chỉ gửi khi giáo viên đã sửa / dùng đề xuất; rỗng → null (xoá khỏi trang học sinh).
+        ...(reviewEdit ? { reviewSuggestions: reviewToPayload(reviewEdit) } : {}),
       });
       if (res.errors.length) return handleActionErrors(res.errors);
 
@@ -784,6 +891,7 @@ function GradingDialog({
                       row.updatedAt !== row.submittedAt && (
                         <span className="ml-1 text-xs">(đã sửa)</span>
                       )}
+                    {row.isLate && <LateBadge lateSeconds={row.lateSeconds} className="ml-2" />}
                   </p>
                 )}
               </div>
@@ -812,6 +920,38 @@ function GradingDialog({
                   {row.note}
                 </div>
               )}
+              {isExam && (
+                <AiDraftPanel
+                  maxScore={maxScore}
+                  row={aiRow}
+                  state={aiDraft}
+                  mode={ai.mode}
+                  requesting={aiRequesting}
+                  formHasContent={!!score.trim() || !!feedback.trim()}
+                  appliedUnsaved={appliedFromAi}
+                  disabled={saving}
+                  onRequest={onRequestAi}
+                  onApply={(draft) => {
+                    setScore(draft.suggestedScore === null ? '' : String(draft.suggestedScore));
+                    setFeedback(draft.feedback ?? '');
+                    setReviewEdit(reviewFromDraft(draft));
+                    setAppliedFromAi(true);
+                    handleActionSuccess(
+                      'Đã điền đề xuất của AI vào form — kiểm tra, sửa rồi bấm Lưu điểm',
+                    );
+                  }}
+                />
+              )}
+              {appliedFromAi && (
+                <p
+                  role="status"
+                  className="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900"
+                >
+                  <Bot className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                  Điểm, nhận xét và nội dung nên xem lại bên dưới lấy từ AI và CHƯA được lưu — học
+                  sinh chỉ thấy sau khi bạn bấm Lưu điểm.
+                </p>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="grade-score">Điểm (0 – {maxScore})</Label>
                 <Input
@@ -836,6 +976,16 @@ function GradingDialog({
                   placeholder="Trình bày tốt, sai câu 3…"
                 />
               </div>
+
+              {/* Chỉ hiện khi đã tải được gợi ý đang duyệt: sửa trên danh sách rỗng giả sẽ ghi
+                  đè mất gợi ý cũ lúc lưu. */}
+              {isExam && aiDraft.detail && (
+                <ReviewSuggestionsEditor
+                  value={review}
+                  onChange={setReviewEdit}
+                  disabled={saving}
+                />
+              )}
 
               <Button
                 onClick={() => void save()}

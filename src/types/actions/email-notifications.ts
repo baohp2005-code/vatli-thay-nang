@@ -7,7 +7,9 @@ export type EmailNotificationType =
   | 'HOMEWORK_ASSIGNED'
   | 'HOMEWORK_REMINDER'
   | 'MONTHLY_REPORT'
-  | 'TEST_SCORE';
+  | 'TEST_SCORE'
+  | 'SESSION_RECORDING'
+  | 'HOMEWORK_DIGEST';
 
 export const EMAIL_NOTIFICATION_TYPE_LABEL: Record<EmailNotificationType, string> = {
   WEEKLY_SCHEDULE: 'Lịch học tuần',
@@ -15,6 +17,8 @@ export const EMAIL_NOTIFICATION_TYPE_LABEL: Record<EmailNotificationType, string
   HOMEWORK_REMINDER: 'Nhắc hạn nộp',
   MONTHLY_REPORT: 'Tổng kết tháng',
   TEST_SCORE: 'Báo điểm',
+  SESSION_RECORDING: 'Nhắc xem lại buổi học',
+  HOMEWORK_DIGEST: 'Bài tập còn nợ',
 };
 
 export interface EmailDeliveryCounts {
@@ -64,6 +68,8 @@ export interface EmailContent {
 export interface EmailSchedule {
   weekly: string | null;
   monthly: string | null;
+  /** Bài tập còn nợ — 20h Chủ nhật. Optional: BE cũ chưa trả field này. */
+  homeworkDigest?: string | null;
 }
 
 /** CURRENT: các buổi còn lại của tuần này. NEXT: cả tuần sau. */
@@ -86,3 +92,14 @@ export interface MonthlyReportPreview {
   /** Tháng này em chưa có dữ liệu gì — lượt gửi thật sẽ bỏ qua em này. */
   empty: boolean;
 }
+
+/** Học sinh sẽ nhận email "Bài tập còn nợ" nếu gửi lúc này, kèm số bài em đang nợ. */
+export interface HomeworkDigestRecipient extends MonthlyRecipient {
+  /** Số bài đã quá hạn (vẫn nộp được, ghi nhận nộp muộn). */
+  overdue: number;
+  /** Số bài chưa tới hạn. */
+  upcoming: number;
+}
+
+/** Cùng hình dạng xem trước tổng kết tháng; `empty` = em không nợ bài nào (không nhận mail). */
+export type HomeworkDigestPreview = MonthlyReportPreview;

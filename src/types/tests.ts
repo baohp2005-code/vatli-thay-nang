@@ -1,9 +1,12 @@
+import type { ResolvedReviewSuggestions } from './ai-grading';
+
 /** Suy ra từ thời gian hiện tại ở BE — không lưu DB, FE chỉ đọc. */
 export type TestPhase = 'SCHEDULED' | 'ONGOING' | 'ENDED';
 
 /**
  * EXAM: bài kiểm tra — chấm điểm, có bước "Bắt đầu" + đồng hồ làm bài.
- * HOMEWORK: bài tập về nhà — chỉ cần nộp trước hạn, có email báo bài + nhắc hạn nộp.
+ * HOMEWORK: bài tập về nhà — nộp trước hạn (quá hạn vẫn nộp được, ghi nhận nộp muộn), có
+ * email báo bài + nhắc hạn nộp + tổng hợp bài còn nợ hằng tuần.
  */
 export type TestType = 'EXAM' | 'HOMEWORK';
 
@@ -59,6 +62,20 @@ export interface TestRow {
   durationMinutes: number;
   type: TestType;
   phase: TestPhase;
+  /**
+   * Bài tập đã quá hạn nhưng vẫn nhận nộp muộn (HOMEWORK + ENDED). Phase vẫn là ENDED —
+   * nhãn vẫn báo "quá hạn", chỉ riêng cửa nộp bài còn mở. Bài kiểm tra luôn false.
+   */
+  lateSubmission: boolean;
+}
+
+/**
+ * Bài nộp sau hạn (chỉ bài tập): `lateSeconds` = trễ bao lâu so với endTime. Bài đúng hạn,
+ * chưa nộp hoặc bài kiểm tra: isLate = false, lateSeconds = null.
+ */
+export interface LateInfo {
+  isLate: boolean;
+  lateSeconds: number | null;
 }
 
 /** Lượt làm bài của học sinh — trả từ getTest và POST /tests/:id/start. */
@@ -80,6 +97,8 @@ export interface StudentTestRow extends TestRow {
   mySubmissionStatus: TestSubmissionStatus;
   /** Có giá trị ngay khi bài đã được chấm (không chờ bài kết thúc). */
   myScore: number | null;
+  /** Bài của mình nộp sau hạn (chỉ bài tập). */
+  myIsLate: boolean;
 }
 
 export interface TestDetail extends TestRow {
@@ -93,6 +112,12 @@ export interface TestDetail extends TestRow {
    * Bài kiểm tra: email báo điểm sau khi chấm.
    */
   emailNotify?: boolean;
+  /**
+   * Đáp án / barem dạng chữ + file — CHỈ có trong response của ADMIN / Trợ giảng (AI dùng để
+   * chấm). Học sinh không bao giờ nhận hai trường này.
+   */
+  answerKeyText?: string | null;
+  answerFiles?: TestFile[];
 }
 
 /**
@@ -116,13 +141,15 @@ export interface ScoreEmailStatus {
 }
 
 /** Bài nộp của chính học sinh. `score`/`feedback` chỉ có khi ENDED + đã chấm (BE chốt). */
-export interface MySubmission {
+export interface MySubmission extends LateInfo {
   note: string | null;
   submittedAt: string;
   updatedAt: string;
   files: TestFile[];
   score: number | null;
   feedback: string | null;
+  /** "Nội dung nên xem lại" giáo viên đã duyệt — đi cùng điểm, chưa chấm thì không có. */
+  reviewSuggestions?: ResolvedReviewSuggestions | null;
 }
 
 /** Lượt admin mở lại cho học sinh nộp bù — bỏ qua phase và đồng hồ làm bài. */
@@ -140,9 +167,14 @@ export interface StudentTestDetail extends TestDetail {
   mySubmission: MySubmission | null;
   /** Khác null = đang được mở lại nộp bù; hạn nộp là reopenUntil. */
   myReopen: TestReopen | null;
+  /**
+   * Bài tập quá hạn mà em vẫn nộp được (ghi nhận nộp muộn): chưa nộp, hoặc bài đã nộp muộn
+   * chưa chấm. Bài đã nộp ĐÚNG hạn thì không ghi đè được sau hạn (BE chặn).
+   */
+  myCanSubmitLate: boolean;
 }
 
-export interface SubmissionRow {
+export interface SubmissionRow extends LateInfo {
   studentId: number;
   fullName: string | null;
   email: string;
@@ -211,3 +243,19 @@ export interface PageMeta {
 
 export type SubmissionFilterStatus = 'submitted' | 'graded' | 'not_submitted';
 export type ExportFormat = 'csv' | 'xlsx';
+
+/**
+ * Một bài tập học sinh còn nợ (GET /api/v1/homework/outstanding) — cùng logic chọn bài
+ * với email "Bài tập còn nợ" 20h Chủ nhật. BE trả sẵn thứ tự: quá hạn lâu nhất trước,
+ * rồi tới bài hạn gần nhất.
+ */
+export interface OutstandingHomework {
+  testId: number;
+  courseId: number;
+  courseTitle: string;
+  title: string;
+  startTime: string;
+  endTime: string;
+  /** Đã quá hạn (theo giờ máy chủ) — vẫn nộp được, ghi nhận nộp muộn. */
+  overdue: boolean;
+}

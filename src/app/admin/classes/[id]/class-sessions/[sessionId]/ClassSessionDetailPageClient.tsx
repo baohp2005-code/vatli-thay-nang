@@ -12,11 +12,13 @@ import ClassSessionInfoSection from '@/components/features/class-sessions/ClassS
 import AttendanceSection from '@/components/features/class-sessions/AttendanceSection';
 import AttendanceOverview from '@/components/features/class-sessions/AttendanceOverview';
 import AttendanceEmailCard from '@/components/features/class-sessions/AttendanceEmailCard';
+import SessionRecordingCard from '@/components/features/class-sessions/SessionRecordingCard';
 import LeaveRequestsSection from '@/components/features/leave-requests/LeaveRequestsSection';
 import { CLASS_SESSION_STATUS_MAP, getEffectiveStatus } from '@/lib/class-sessions';
 import type { ListAttendanceSessionsResponse } from '@/actions/v1/attendance/list-attendance-sessions';
 import type { GetAttendanceSummaryResponse } from '@/actions/v1/attendance/get-attendance-summary';
 import type { GetAttendanceEmailStatusResponse } from '@/actions/v1/attendance-notifications/get-attendance-email-status';
+import type { GetSessionRecordingResponse } from '@/actions/v1/session-recordings/get-session-recording';
 import type { ClassSessionDetail } from '@/types/actions/class-management';
 import type { IListLeaveRequestsResult } from '@/types/actions/leave-requests';
 
@@ -29,6 +31,19 @@ interface Props {
   leaveRequestsPromise: Promise<IListLeaveRequestsResult>;
   /** null với Trợ giảng — email điểm danh là việc của ADMIN (BE chặn 403). */
   emailStatusPromise: Promise<GetAttendanceEmailStatusResponse> | null;
+  /** null với Trợ giảng — như email điểm danh. */
+  recordingPromise: Promise<GetSessionRecordingResponse> | null;
+}
+
+function SessionRecordingSection({
+  classSessionId,
+  promise,
+}: {
+  classSessionId: number;
+  promise: Promise<GetSessionRecordingResponse>;
+}) {
+  const { data } = useResolved(promise);
+  return <SessionRecordingCard classSessionId={classSessionId} status={data} />;
 }
 
 function AttendanceEmailSection({
@@ -129,6 +144,7 @@ export default function ClassSessionDetailPageClient({
   summaryPromise,
   leaveRequestsPromise,
   emailStatusPromise,
+  recordingPromise,
 }: Props) {
   const statusInfo =
     CLASS_SESSION_STATUS_MAP[getEffectiveStatus(classSession.startTime, classSession.endTime)];
@@ -169,6 +185,12 @@ export default function ClassSessionDetailPageClient({
       {emailStatusPromise && (
         <Suspense fallback={<AttendanceEmailSkeleton />}>
           <AttendanceEmailSection classSessionId={classSession.id} promise={emailStatusPromise} />
+        </Suspense>
+      )}
+
+      {recordingPromise && (
+        <Suspense fallback={<AttendanceEmailSkeleton />}>
+          <SessionRecordingSection classSessionId={classSession.id} promise={recordingPromise} />
         </Suspense>
       )}
 

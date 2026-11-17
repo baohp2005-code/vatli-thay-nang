@@ -172,3 +172,17 @@ export function getTuitionReminderMonth(): { year: number; month: number } | nul
     ? vnCurrentYearMonth()
     : null;
 }
+
+/**
+ * "45 phút", "5 giờ", "3 ngày" — độ trễ của bài nộp muộn / bài quá hạn, làm tròn XUỐNG
+ * theo đơn vị lớn nhất. Khớp `formatLateDuration` phía BE (email, file xuất kết quả) để
+ * cùng một bài không hiện hai con số khác nhau.
+ */
+export function formatLateDuration(ms: number): string {
+  const minute = 60_000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (ms >= day) return `${Math.floor(ms / day)} ngày`;
+  if (ms >= hour) return `${Math.floor(ms / hour)} giờ`;
+  return `${Math.max(1, Math.floor(ms / minute))} phút`;
+}

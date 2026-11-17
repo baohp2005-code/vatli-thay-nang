@@ -3,8 +3,17 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BookOpenCheck, CalendarDays, ClipboardCheck, Eye, FileBarChart, Send } from 'lucide-react';
 import {
+  BookOpenCheck,
+  CalendarDays,
+  ClipboardCheck,
+  ClipboardList,
+  Eye,
+  FileBarChart,
+  Send,
+} from 'lucide-react';
+import {
+  sendHomeworkDigestAction,
   sendMonthlyReportAction,
   sendWeeklyScheduleAction,
   type EmailActionResult,
@@ -25,9 +34,10 @@ import { toast } from 'sonner';
 import { handleActionResult } from '@/lib/actions';
 import { formatDateTime } from '@/lib/format';
 import type { EmailSchedule } from '@/types/actions/email-notifications';
+import HomeworkDigestPreviewDialog from './HomeworkDigestPreviewDialog';
 import MonthlyPreviewDialog from './MonthlyPreviewDialog';
 
-type SendKind = 'WEEK_CURRENT' | 'WEEK_NEXT' | 'MONTHLY';
+type SendKind = 'WEEK_CURRENT' | 'WEEK_NEXT' | 'MONTHLY' | 'HOMEWORK_DIGEST';
 
 const CONFIRM: Record<SendKind, { title: string; description: string }> = {
   WEEK_CURRENT: {
@@ -45,12 +55,18 @@ const CONFIRM: Record<SendKind, { title: string; description: string }> = {
     description:
       'Mỗi học sinh nhận tổng kết tháng hiện tại, tính tới thời điểm bấm. Đây là lượt gửi riêng — 20h ngày cuối tháng hệ thống vẫn gửi bản tổng kết chính thức.',
   },
+  HOMEWORK_DIGEST: {
+    title: 'Gửi email bài tập còn nợ ngay?',
+    description:
+      'Mỗi học sinh còn nợ bài tập nhận danh sách bài chưa nộp, tính tới thời điểm bấm. Đây là lượt gửi riêng — 20h Chủ nhật hệ thống vẫn gửi như thường lệ.',
+  },
 };
 
 const ACTION: Record<SendKind, () => Promise<EmailActionResult>> = {
   WEEK_CURRENT: () => sendWeeklyScheduleAction('CURRENT'),
   WEEK_NEXT: () => sendWeeklyScheduleAction('NEXT'),
   MONTHLY: () => sendMonthlyReportAction(),
+  HOMEWORK_DIGEST: () => sendHomeworkDigestAction(),
 };
 
 interface Props {
@@ -62,6 +78,7 @@ export default function EmailScheduleSection({ schedule }: Props) {
   const [confirm, setConfirm] = useState<SendKind | null>(null);
   const [sending, setSending] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [digestPreviewOpen, setDigestPreviewOpen] = useState(false);
 
   async function handleConfirm() {
     if (!confirm) return;
@@ -164,13 +181,49 @@ export default function EmailScheduleSection({ schedule }: Props) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
+            <ClipboardList className="text-muted-foreground size-5" /> Bài tập còn nợ
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 pb-4 text-sm sm:pb-6">
+          <p className="text-muted-foreground">
+            20h Chủ nhật: mỗi học sinh còn nợ bài nhận một email liệt kê mọi bài tập chưa nộp (đã
+            quá hạn / sắp đến hạn) ở các khóa đang học. Cộng dồn — bài chưa nộp còn trong email các
+            tuần sau cho tới khi nộp. Chỉ tính bài có tích{' '}
+            <span className="text-foreground">Gửi email cho học sinh</span>.
+          </p>
+          <p>Lần gửi tới: {next(schedule?.homeworkDigest)}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDigestPreviewOpen(true)}
+              className="cursor-pointer"
+            >
+              <Eye className="size-4" /> Xem trước
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfirm('HOMEWORK_DIGEST')}
+              className="cursor-pointer"
+            >
+              <Send className="size-4" /> Gửi ngay
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
             <BookOpenCheck className="text-muted-foreground size-5" /> Bài tập về nhà
           </CardTitle>
         </CardHeader>
         <CardContent className="text-muted-foreground space-y-2 pb-4 text-sm sm:pb-6">
           <p>
             Khi đăng bài tập có tích <span className="text-foreground">Gửi email cho học sinh</span>
-            : gửi ngay thông báo bài mới, và 24 giờ trước hạn nộp nhắc những em chưa nộp.
+            : gửi ngay thông báo bài mới, và 24 giờ trước hạn nộp nhắc những em chưa nộp. Quá hạn
+            học sinh vẫn nộp được (ghi nhận nộp muộn).
           </p>
           <p>
             Tạo bài tập ở mục <span className="text-foreground">Bài tập & bài kiểm tra</span> trong
@@ -206,6 +259,7 @@ export default function EmailScheduleSection({ schedule }: Props) {
       </Card>
 
       <MonthlyPreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} />
+      <HomeworkDigestPreviewDialog open={digestPreviewOpen} onOpenChange={setDigestPreviewOpen} />
 
       <AlertDialog
         open={!!confirm}

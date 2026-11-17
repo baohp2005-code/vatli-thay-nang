@@ -1,3 +1,4 @@
+import type { ReviewSuggestionsPayload } from '@/types/ai-grading';
 import type {
   AdminTestRow,
   PageMeta,
@@ -32,6 +33,10 @@ export interface ICreateTestPayload {
   /** Thời gian làm bài (phút), 1 … 1440. Bắt buộc với bài kiểm tra. */
   durationMinutes?: number;
   attachments?: TestFilePayload[];
+  /** Đáp án / barem dạng chữ cho AI chấm bài (học sinh không thấy). Sửa: '' = xoá. */
+  answerKeyText?: string;
+  /** File đáp án (tối đa 10, cùng folder test-attachments). Sửa: danh sách ĐẦY ĐỦ mới. */
+  answerFiles?: TestFilePayload[];
 }
 
 /** attachments là danh sách ĐẦY ĐỦ mới — BE diff để xoá file bị bỏ khỏi R2. */
@@ -46,6 +51,11 @@ export interface IUpsertSubmissionPayload {
 export interface IGradeSubmissionPayload {
   score: number;
   feedback?: string;
+  /**
+   * Gợi ý ôn tập giáo viên duyệt (học sinh thấy). Bỏ trường = BE giữ nguyên cái đã duyệt;
+   * null = xoá hết.
+   */
+  reviewSuggestions?: ReviewSuggestionsPayload | null;
 }
 
 export interface IGradeSubmissionResult {

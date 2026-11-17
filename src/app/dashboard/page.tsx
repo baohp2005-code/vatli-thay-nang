@@ -11,7 +11,9 @@ import StatsCard from '@/components/app/StatsCard';
 import AttendanceStatsInline from '@/components/features/classes/AttendanceStatsInline';
 import DashboardClassesSkeleton from '@/components/features/classes/DashboardClassesSkeleton';
 import TuitionReminderBanner from '@/components/features/classes/TuitionReminderBanner';
+import OutstandingHomeworkSection from '@/components/features/homework/OutstandingHomeworkSection';
 import { listClasses } from '@/actions/v1/classes/list-classes';
+import { listOutstandingHomework } from '@/actions/v1/homework/list-outstanding-homework';
 import { getCurrentSession } from '@/lib/server/session';
 import { getTuitionReminderMonth } from '@/lib/format';
 import { ASSETS } from '@/constants/assets';
@@ -144,6 +146,7 @@ async function ClassesSection({
 export default async function DashboardPage() {
   // Khởi tạo song song với getCurrentSession() thay vì chờ nối tiếp.
   const classesPromise = listClasses({ page: 1, pageSize: 100 });
+  const outstandingPromise = listOutstandingHomework();
   const session = await getCurrentSession();
   const displayName = session?.fullName?.trim() || session?.email?.split('@')[0] || 'bạn';
 
@@ -185,6 +188,12 @@ export default async function DashboardPage() {
           </Button>
         </CardContent>
       </GradientHeroCard>
+
+      {/* Fallback rỗng: phần lớn học sinh không nợ bài nào → mục này không hiện, skeleton
+          nhấp nháy rồi biến mất chỉ gây giật trang. */}
+      <Suspense fallback={null}>
+        <OutstandingHomeworkSection outstandingPromise={outstandingPromise} />
+      </Suspense>
 
       <Suspense fallback={<DashboardClassesSkeleton />}>
         <ClassesSection classesPromise={classesPromise} />

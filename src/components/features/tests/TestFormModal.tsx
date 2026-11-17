@@ -43,7 +43,8 @@ interface Props {
 
 const TYPE_HINT: Record<TestType, string> = {
   EXAM: 'Có chấm điểm. Học sinh bấm Bắt đầu mới thấy đề, đồng hồ làm bài chạy từ lúc đó.',
-  HOMEWORK: 'Không chấm điểm, không giới hạn thời gian — học sinh chỉ cần nộp bài trước hạn.',
+  HOMEWORK:
+    'Không chấm điểm, không giới hạn thời gian. Quá hạn học sinh vẫn nộp được, bài được ghi nhận nộp muộn.',
 };
 
 const EMAIL_HINT: Record<TestType, string> = {
@@ -90,6 +91,11 @@ export default function TestFormModal({
   const [maxScore, setMaxScore] = useState('10');
   const [durationMinutes, setDurationMinutes] = useState('60');
   const [attachments, setAttachments] = useState<TestFilePayload[]>([]);
+  // Đáp án / barem cho AI chấm bài (chỉ bài kiểm tra) — học sinh không bao giờ thấy.
+  const [answerKeyText, setAnswerKeyText] = useState('');
+  const [answerFiles, setAnswerFiles] = useState<TestFilePayload[]>([]);
+  const [uploadingAnswers, setUploadingAnswers] = useState(false);
+  const uploadBusy = uploadingFiles || uploadingAnswers;
 
   // Nạp dữ liệu bài đang sửa. fileStorageKey chỉ có trong response của admin — thiếu
   // nó thì PATCH sẽ hiểu là "bỏ hết đề cũ" và xoá sạch file trên R2.
@@ -120,6 +126,16 @@ export default function TestFormModal({
       setDurationMinutes(String(t.durationMinutes));
       setAttachments(
         t.attachments.map((a) => ({
+          fileStorageKey: a.fileStorageKey!,
+          fileName: a.fileName,
+          fileSize: a.fileSize ?? undefined,
+          mimeType: a.mimeType ?? undefined,
+          order: a.order,
+        })),
+      );
+      setAnswerKeyText(t.answerKeyText ?? '');
+      setAnswerFiles(
+        (t.answerFiles ?? []).map((a) => ({
           fileStorageKey: a.fileStorageKey!,
           fileName: a.fileName,
           fileSize: a.fileSize ?? undefined,
@@ -164,6 +180,9 @@ export default function TestFormModal({
       // Bài tập không chấm điểm / không đồng hồ — BE tự điền mặc định khi tạo.
       ...(isExam ? { maxScore: score, durationMinutes: duration } : {}),
       attachments,
+      // Bài tập không có đáp án → không gửi (sửa bài tập thì BE giữ nguyên cái cũ). Bài kiểm
+      // tra luôn gửi cả hai: '' / [] = xoá đáp án.
+      ...(isExam ? { answerKeyText: answerKeyText.trim(), answerFiles } : {}),
     };
 
     setSaving(true);
@@ -189,7 +208,7 @@ export default function TestFormModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !saving && !uploadingFiles && onOpenChange(o)}>
+    <Dialog open={open} onOpenChange={(o) => !saving && !uploadBusy && onOpenChange(o)}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
@@ -362,6 +381,43 @@ export default function TestFormModal({
               />
             </div>
 
+            {type === 'EXAM' && (
+              <fieldset className="border-purple/30 bg-purple/5 space-y-3 rounded-lg border p-3">
+                <legend className="px-1 text-sm font-medium">
+                  Đáp án / barem (dùng cho AI chấm bài)
+                </legend>
+                <p className="text-muted-foreground text-xs">
+                  Tuỳ chọn. Có đáp án thì AI chấm đối chiếu theo barem; không có thì AI tự giải đề
+                  và độ tin cậy thấp hơn. <strong>Học sinh không bao giờ thấy phần này</strong>, và
+                  AI chỉ đề xuất — giáo viên duyệt rồi mới lưu điểm.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="test-answer-key">Đáp án dạng chữ</Label>
+                  <Textarea
+                    id="test-answer-key"
+                    value={answerKeyText}
+                    onChange={(e) => setAnswerKeyText(e.target.value)}
+                    placeholder={
+                      'Câu 1 (2đ): v = 5 m/s. Đúng đơn vị mới được trọn điểm.\nCâu 2 (3đ): …'
+                    }
+                    rows={4}
+                    maxLength={20000}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>File đáp án / barem (ảnh / PDF)</Label>
+                  <TestFileUploader
+                    folder="test-attachments"
+                    value={answerFiles}
+                    onChange={setAnswerFiles}
+                    disabled={saving}
+                    maxFiles={10}
+                    onBusyChange={setUploadingAnswers}
+                  />
+                </div>
+              </fieldset>
+            )}
+
             <DialogFooter>
               <Button
                 type="button"
@@ -369,13 +425,13 @@ export default function TestFormModal({
                 onClick={() => onOpenChange(false)}
                 // Đóng giữa chừng thì file đang tải xong sẽ thành object mồ côi trên R2,
                 // và người dùng tưởng đã huỷ trong khi tệp vẫn nằm đó.
-                disabled={saving || uploadingFiles}
+                disabled={saving || uploadBusy}
                 className="cursor-pointer"
               >
                 Huỷ
               </Button>
-              <Button type="submit" disabled={saving || uploadingFiles} className="cursor-pointer">
-                {uploadingFiles
+              <Button type="submit" disabled={saving || uploadBusy} className="cursor-pointer">
+                {uploadBusy
                   ? 'Đang tải tệp lên…'
                   : saving
                     ? 'Đang lưu…'

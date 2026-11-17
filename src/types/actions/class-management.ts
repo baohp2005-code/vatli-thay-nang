@@ -1,4 +1,5 @@
 import type { ClassStudentSortBy } from '@/types/actions/attendance';
+import type { ClassSessionRecording } from '@/types/actions/session-recordings';
 import type { ListMeta, SortOrder } from '@/types/auth';
 import type {
   ClassGroup,
@@ -184,6 +185,8 @@ export interface ClassSessionDetail {
   endTime: string;
   meetingUrl: string | null;
   activeAttendanceSession: { id: number; closedAt: string } | null;
+  /** Video record của buổi (null = chưa gắn). */
+  recording?: ClassSessionRecording | null;
 }
 
 export interface ICreateClassSessionPayload {
